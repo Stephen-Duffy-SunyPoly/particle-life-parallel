@@ -45,3 +45,5 @@ particle_life2/.idea/
 /particle_life/main.optrpt
 /particle_life/main.opt.yaml
 /particle_life/pl-compiled/bin
+/particle_life/cmake-build-debug
+/particle_life/cmake-build-release
