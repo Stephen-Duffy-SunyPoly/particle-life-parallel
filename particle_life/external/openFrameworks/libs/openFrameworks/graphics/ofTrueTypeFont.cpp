@@ -370,6 +370,8 @@ static bool loadFontFace(const string & _fontname, FT_Face & face,
 	auto fontname = _fontname;
 	auto filename = ofToDataPathFS(fontname);
 	int fontID = index;
+	//enure the current wd is appened before the file name
+	filename = of::filesystem::current_path().string() + filename.string();
 	if(!of::filesystem::exists(filename)){
 #ifdef TARGET_LINUX
 		filename = linuxFontPathByName(fontname);

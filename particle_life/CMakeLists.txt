@@ -316,10 +316,18 @@ endif()
 ########################################
 # Your Application
 ########################################
+
+#copy the data folder
+add_custom_target(copy_assets
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_LIST_DIR}/data ${CMAKE_CURRENT_BINARY_DIR}/data
+)
+
 add_executable(particle_life
         src/main.cpp
         src/ofApp.cpp
 )
+
+add_dependencies(particle_life copy_assets)
 
 target_include_directories(particle_life PRIVATE
         external/openFrameworks/addons/ofxGui/src

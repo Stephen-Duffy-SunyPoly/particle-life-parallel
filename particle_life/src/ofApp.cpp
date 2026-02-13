@@ -318,7 +318,7 @@ void ofApp::setup()
 
 	// Interface
 	gui.setup("Settings");
-	gui.loadFont("Arial.ttf", 12);
+	gui.loadFont("data/Arial.ttf", 12);
 	gui.setWidthElements(300.0f);
 
 	gui.add(fps.setup("FPS", "0"));
