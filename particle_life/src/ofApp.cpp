@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <random>
+#include <fstream>
 //#include "oneapi/tbb.h"
 
 
@@ -205,7 +206,7 @@ void ofApp::saveSettings()
 	{
 		ofSystemAlertDialog("Could not Save Model!");
 	}
-	ofstream myfile(save_path);
+	std::ofstream myfile(save_path);
 	if (myfile.is_open())
 	{
 		for (int i = 0; i < settings.size(); i++)
@@ -317,7 +318,7 @@ void ofApp::setup()
 
 	// Interface
 	gui.setup("Settings");
-	gui.loadFont("Arial", 12);
+	gui.loadFont("Arial.ttf", 12);
 	gui.setWidthElements(300.0f);
 
 	gui.add(fps.setup("FPS", "0"));
@@ -437,7 +438,6 @@ void ofApp::update()
 	boundHeight  = ofGetHeight();
 	boundWidth   = ofGetWidth();
 
-
 	if (evoToggle && ofRandom(1.0F) < (evoChance / 100.0F))
 	{
 		for (auto& slider : powersliders) {
@@ -474,7 +474,7 @@ void ofApp::update()
 
 		interaction(red,   red,   powerSliderRR, vSliderRR, boundsToggle); 
 		interaction(red,   green, powerSliderRR, vSliderRG, boundsToggle);
-		interaction(red,   yellow,  powerSliderRR, vSliderRY, boundsToggle); 
+		interaction(red,   yellow,  powerSliderRR, vSliderRY, boundsToggle);
 		interaction(red,   white, powerSliderRR, vSliderRW, boundsToggle);
 		interaction(green, red,   powerSliderGR, vSliderGR, boundsToggle);
 		interaction(green, green, powerSliderGG, vSliderGG, boundsToggle);
