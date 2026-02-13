@@ -1,7 +1,8 @@
 #ifndef OF_MESH_H
 #include "ofMesh.h"
 #endif
-
+#include <glm/glm.hpp>
+#include <glm/gtx/rotate_vector.hpp>
 #include "../app/ofAppRunner.h"
 #include "../graphics/ofGraphicsBaseTypes.h"
 // it can be removed if other PR is merged #8178

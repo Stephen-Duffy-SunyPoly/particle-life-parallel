@@ -1,7 +1,8 @@
 #ifndef OF_POLYLINE_H
 #include "ofPolyline.h"
 #endif
-
+#include <glm/glm.hpp>
+#include <glm/gtx/norm.hpp>
 #include "../types/ofRectangle.h"
 #include "ofGraphicsBaseTypes.h"
 #include "../app/ofAppRunner.h"
@@ -339,7 +340,6 @@ void ofPolyline_<T>::arc(const T & center, float radiusX, float radiusY, float a
 
     const size_t nCirclePoints = circlePoints.size();
     float segmentArcSize  = glm::two_pi<float>() / (float)nCirclePoints;
-
     // convert angles to radians and wrap them into the range 0 - glm::two_pi<float>() and
     float angleBeginRad = wrapAngle(glm::radians(angleBegin));
     float angleEndRad =   wrapAngle(glm::radians(angleEnd));
