@@ -12,6 +12,59 @@ struct colorGroup {
 	ofColor color;
 };
 
+constexpr size_t GREEN_INDEX = 0;
+constexpr size_t RED_INDEX = 1;
+constexpr size_t ORANGE_INDEX = 2;
+constexpr size_t CYAN_INDEX = 3;
+
+/**Hold sliders to represent a property for each color that can be accessed in a dynamic way at runtime
+ */
+struct PerColorSliderValues {
+	ofxFloatSlider red ;
+	ofxFloatSlider green ;
+	ofxFloatSlider orange;
+	ofxFloatSlider cyan ;
+
+	ofxFloatSlider& operator[](size_t index){
+		switch (index) {
+			case GREEN_INDEX:
+				return green;
+			case RED_INDEX:
+				return red;
+			case ORANGE_INDEX:
+				return orange;
+			case CYAN_INDEX:
+				return cyan;
+			default:
+				return green;
+		}
+	};
+};
+
+/**Hold collections of sliders for each color on color property for each color that can be accessed in a dynamic way at runtime
+ */
+struct GroupColorSliderValues {
+	PerColorSliderValues red;
+	PerColorSliderValues green;
+	PerColorSliderValues orange;
+	PerColorSliderValues cyan;
+
+	PerColorSliderValues& operator[](size_t index) {
+		switch (index) {
+			case GREEN_INDEX:
+				return green;
+			case RED_INDEX:
+				return red;
+			case ORANGE_INDEX:
+				return orange;
+			case CYAN_INDEX:
+				return cyan;
+			default:
+				return green;
+		}
+	}
+};
+
 
 class ofApp final : public ofBaseApp
 {
@@ -39,7 +92,6 @@ public:
 	ofxPanel gui;
 	ofVbo vbo;
 
-	//TODO change these colors to match web version
 	colorGroup green;
 	colorGroup red;
 	colorGroup orange;
@@ -94,61 +146,26 @@ public:
 	ofxFloatSlider gravitySlider;
 	ofxFloatSlider wallRepelSlider;
 
-	ofxFloatSlider powerSliderRR;
-	ofxFloatSlider powerSliderRG;
-	ofxFloatSlider powerSliderRO;
-	ofxFloatSlider powerSliderRC;
-	
-	ofxFloatSlider powerSliderGR;
-	ofxFloatSlider powerSliderGG;
-	ofxFloatSlider powerSliderGO;
-	ofxFloatSlider powerSliderGC;
-	
-	ofxFloatSlider powerSliderOR;
-	ofxFloatSlider powerSliderOG;
-	ofxFloatSlider powerSliderOO;
-	ofxFloatSlider powerSliderOC;
-	
-	ofxFloatSlider powerSliderCR;
-	ofxFloatSlider powerSliderCG;
-	ofxFloatSlider powerSliderCO;
-	ofxFloatSlider powerSliderCC;
-	
-	ofxFloatSlider vSliderRR;
-	ofxFloatSlider vSliderRG;
-	ofxFloatSlider vSliderRO;
-	ofxFloatSlider vSliderRC;
-	
-	ofxFloatSlider vSliderGR;
-	ofxFloatSlider vSliderGG;
-	ofxFloatSlider vSliderGO;
-	ofxFloatSlider vSliderGC;
-	
-	ofxFloatSlider vSliderOR;
-	ofxFloatSlider vSliderOG;
-	ofxFloatSlider vSliderOO;
-	ofxFloatSlider vSliderOC;
-
-	ofxFloatSlider vSliderCR;
-	ofxFloatSlider vSliderCG;
-	ofxFloatSlider vSliderCO;
-	ofxFloatSlider vSliderCC;
+	GroupColorSliderValues colorPowerSliders = {};
+	GroupColorSliderValues colorRadiusSliders = {};
 
 	vector<ofxFloatSlider*> powersliders = {
-		&powerSliderRR, &powerSliderRG, &powerSliderRC, &powerSliderRO,
-		&powerSliderGR, &powerSliderGG, &powerSliderGC, &powerSliderGO,
-		&powerSliderCR, &powerSliderCG, &powerSliderCC, &powerSliderCO,
-		&powerSliderOR, &powerSliderOG, &powerSliderOC, &powerSliderOO,
+		&colorPowerSliders.red.red,    &colorPowerSliders.red.green,    &colorPowerSliders.red.cyan,    &colorPowerSliders.red.orange,
+		&colorPowerSliders.green.red,  &colorPowerSliders.green.green,  &colorPowerSliders.green.cyan,  &colorPowerSliders.green.orange,
+		&colorPowerSliders.cyan.red,   &colorPowerSliders.cyan.green,   &colorPowerSliders.cyan.cyan,   &colorPowerSliders.cyan.orange,
+		&colorPowerSliders.orange.red, &colorPowerSliders.orange.green, &colorPowerSliders.orange.cyan, &colorPowerSliders.orange.orange
 	};
 
 	vector<ofxFloatSlider*> vsliders = {
-		&vSliderRR, &vSliderRG, &vSliderRC, &vSliderRO,
-		&vSliderGR, &vSliderGG, &vSliderGC, &vSliderGO,
-		&vSliderCR, &vSliderCG, &vSliderCC, &vSliderCO,
-		&vSliderOR, &vSliderOG, &vSliderOC, &vSliderOO,
+		&colorRadiusSliders.red.red,    &colorRadiusSliders.red.green,    &colorRadiusSliders.red.cyan,    &colorRadiusSliders.red.orange,
+		&colorRadiusSliders.green.red,  &colorRadiusSliders.green.green,  &colorRadiusSliders.green.cyan,  &colorRadiusSliders.green.orange,
+		&colorRadiusSliders.cyan.red,   &colorRadiusSliders.cyan.green,   &colorRadiusSliders.cyan.cyan,   &colorRadiusSliders.cyan.orange,
+		&colorRadiusSliders.orange.red, &colorRadiusSliders.orange.green, &colorRadiusSliders.orange.cyan, &colorRadiusSliders.orange.orange
 	};
 
 #pragma endregion slider
+
+
 
 #pragma region slider values
 	unsigned int pnumberSliderR = 1000;
@@ -156,45 +173,8 @@ public:
 	unsigned int pnumberSliderO = 1000;
 	unsigned int pnumberSliderC = 1000;
 
-	float ppowerSliderRR = 0;
-	float ppowerSliderRG = 0;
-	float ppowerSliderRO = 0;
-	float ppowerSliderRC = 0;
-	
-	float ppowerSliderGR = 0;
-	float ppowerSliderGG = 0;
-	float ppowerSliderGO = 0;
-	float ppowerSliderGC = 0;
-
-	float ppowerSliderOR = 0;
-	float ppowerSliderOG = 0;
-	float ppowerSliderOO = 0;
-	float ppowerSliderOC = 0;
-
-	float ppowerSliderCR = 0;
-	float ppowerSliderCG = 0;
-	float ppowerSliderCO = 0;
-	float ppowerSliderCC = 0;
-
-	float pvSliderRR = 180;
-	float pvSliderRG = 180;
-	float pvSliderRO = 180;
-	float pvSliderRC = 180;
-
-	float pvSliderGR = 180;
-	float pvSliderGG = 180;
-	float pvSliderGO = 180;
-	float pvSliderGC = 180;
-
-	float pvSliderOR = 180;
-	float pvSliderOG = 180;
-	float pvSliderOO = 180;
-	float pvSliderOC = 180;
-
-	float pvSliderCR = 180;
-	float pvSliderCG = 180;
-	float pvSliderCO = 180;
-	float pvSliderCC = 180;
+	float defaultPowerValue = 0;
+	float defaultRadiusValue = 180;
 
 #pragma endregion slider values
 

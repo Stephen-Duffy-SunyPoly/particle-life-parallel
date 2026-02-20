@@ -54,12 +54,15 @@ void ofApp::interaction(colorGroup& Group1, const colorGroup& Group2,
 											 + ((Group1.pos[i].y - Group2.pos[j].y) * (Group1.pos[i].y - Group2.pos[j].y));
 				// pre compute radius squared
 				const float force = distance_squared < radius * radius ? 1.0F / std::sqrtf(distance_squared) : 0.0F;
-				//re use pre computerd diffs here
+				//store these values to a thread local cache
+				//re-use pre-computed diffs here
 				fx += ((Group1.pos[i].x - Group2.pos[j].x) * force);
 				fy += ((Group1.pos[i].y - Group2.pos[j].y) * force);
+				//on the manager thread reduce these values together from all the compyte threads
 			}
 		}
 
+		//do this on main thread after computing new positions
 		// Wall Repel
 		if (wallRepel > 0.0F)
 		{
@@ -69,6 +72,7 @@ void ofApp::interaction(colorGroup& Group1, const colorGroup& Group2,
 			Group1.vel[i].y += Group1.pos[i].y > boundHeight - wallRepel ? (boundHeight - wallRepel - Group1.pos[i].y) * 0.1 : 0.0F; // y			
 		}
 
+		//do this on main thread after the parallel section finishes
 		// Viscosity & gravity
 		//perhaps store this computation of viscosity instead of what is currently stored
 		//sture the computed velocities locally and reduce them together after each thread for a specific color finishes its job
@@ -129,51 +133,51 @@ void ofApp::random()
 {
 	// GREEN
 	//numberSliderG = RandomFloat(0, 3000);
-	powerSliderGG = RandomFloat(-100, 100) * forceVariance;
-	powerSliderGR = RandomFloat(-100, 100) * forceVariance;
-	powerSliderGO = RandomFloat(-100, 100) * forceVariance;
-	powerSliderGC = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[GREEN_INDEX].green  = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[GREEN_INDEX].red    = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[GREEN_INDEX].orange = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[GREEN_INDEX].cyan   = RandomFloat(-100, 100) * forceVariance;
 
-	vSliderGG = RandomFloat(10, 200) * radiusVariance;
-	vSliderGR = RandomFloat(10, 200) * radiusVariance;
-	vSliderGO = RandomFloat(10, 200) * radiusVariance;
-	vSliderGC = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[GREEN_INDEX].green  = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[GREEN_INDEX].red    = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[GREEN_INDEX].orange = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[GREEN_INDEX].cyan   = RandomFloat(10, 200) * radiusVariance;
 
 	// RED
 	//numberSliderR = RandomFloat(0, 3000);
-	powerSliderRR = RandomFloat(-100, 100) * forceVariance;
-	powerSliderRG = RandomFloat(-100, 100) * forceVariance;
-	powerSliderRO = RandomFloat(-100, 100) * forceVariance;
-	powerSliderRC = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[RED_INDEX].green  = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[RED_INDEX].red    = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[RED_INDEX].orange = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[RED_INDEX].cyan   = RandomFloat(-100, 100) * forceVariance;
 
-	vSliderRG = RandomFloat(10, 200) * radiusVariance;
-	vSliderRR = RandomFloat(10, 200) * radiusVariance;
-	vSliderRO = RandomFloat(10, 200) * radiusVariance;
-	vSliderRC = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[RED_INDEX].green  = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[RED_INDEX].red    = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[RED_INDEX].orange = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[RED_INDEX].cyan   = RandomFloat(10, 200) * radiusVariance;
 
-	// WHITE
+	// orange
 	// numberSliderW = RandomFloat(0, 3000);
-	powerSliderOO = RandomFloat(-100, 100) * forceVariance;
-	powerSliderOR = RandomFloat(-100, 100) * forceVariance;
-	powerSliderOG = RandomFloat(-100, 100) * forceVariance;
-	powerSliderOC = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[ORANGE_INDEX].green  = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[ORANGE_INDEX].red    = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[ORANGE_INDEX].orange = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[ORANGE_INDEX].cyan   = RandomFloat(-100, 100) * forceVariance;
 
-	vSliderOG = RandomFloat(10, 200) * radiusVariance;
-	vSliderOR = RandomFloat(10, 200) * radiusVariance;
-	vSliderOO = RandomFloat(10, 200) * radiusVariance;
-	vSliderOC = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[ORANGE_INDEX].green  = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[ORANGE_INDEX].red    = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[ORANGE_INDEX].orange = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[ORANGE_INDEX].cyan   = RandomFloat(10, 200) * radiusVariance;
 
-	// yellow
+	// cyan
 	//numberSliderY = RandomFloat(0, 3000);
-	powerSliderCC = RandomFloat(-100, 100) * forceVariance;
-	powerSliderCO = RandomFloat(-100, 100) * forceVariance;
-	powerSliderCR = RandomFloat(-100, 100) * forceVariance;
-	powerSliderCG = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[CYAN_INDEX].green  = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[CYAN_INDEX].red    = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[CYAN_INDEX].orange = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[CYAN_INDEX].cyan   = RandomFloat(-100, 100) * forceVariance;
 
-	vSliderCG = RandomFloat(10, 200) * radiusVariance;
-	vSliderCR = RandomFloat(10, 200) * radiusVariance;
-	vSliderCO = RandomFloat(10, 200) * radiusVariance;
-	vSliderCC = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[CYAN_INDEX].green  = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[CYAN_INDEX].red    = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[CYAN_INDEX].orange = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[CYAN_INDEX].cyan   = RandomFloat(10, 200) * radiusVariance;
 }
 
 /// this is a cheap and quick way to save and load parameters (openFramework have betters ways but requires some additional library setups) 
@@ -181,14 +185,14 @@ void ofApp::random()
 void ofApp::saveSettings()
 {
 	const std::vector<float> settings = {
-		powerSliderGG, powerSliderGR, powerSliderGO, powerSliderGC,
-		vSliderGG, vSliderGR, vSliderGO, vSliderGC,
-		powerSliderRG, powerSliderRR, powerSliderRO, powerSliderRC,
-		vSliderRG, vSliderRR, vSliderRO, vSliderRC,
-		powerSliderOG, powerSliderOR, powerSliderOO, powerSliderOC,
-		vSliderOG, vSliderOR, vSliderOO, vSliderOC,
-		powerSliderCG, powerSliderCR, powerSliderCO, powerSliderCC,
-		vSliderCG, vSliderCR, vSliderCO, vSliderCC,
+		colorPowerSliders[GREEN_INDEX].green, colorPowerSliders[GREEN_INDEX].red, colorPowerSliders[GREEN_INDEX].orange, colorPowerSliders[GREEN_INDEX].cyan,
+		colorRadiusSliders[GREEN_INDEX].green, colorRadiusSliders[GREEN_INDEX].red, colorRadiusSliders[GREEN_INDEX].orange, colorRadiusSliders[GREEN_INDEX].cyan,
+		colorPowerSliders[RED_INDEX].green, colorPowerSliders[RED_INDEX].red, colorPowerSliders[RED_INDEX].orange, colorPowerSliders[RED_INDEX].cyan ,
+		colorRadiusSliders[RED_INDEX].green, colorRadiusSliders[RED_INDEX].red, colorRadiusSliders[RED_INDEX].orange, colorRadiusSliders[RED_INDEX].cyan,
+		colorPowerSliders[ORANGE_INDEX].green, colorPowerSliders[ORANGE_INDEX].red, colorPowerSliders[ORANGE_INDEX].orange, colorPowerSliders[ORANGE_INDEX].cyan ,
+		colorRadiusSliders[ORANGE_INDEX].green, colorRadiusSliders[ORANGE_INDEX].red, colorRadiusSliders[ORANGE_INDEX].orange, colorRadiusSliders[ORANGE_INDEX].cyan,
+		colorPowerSliders[CYAN_INDEX].green, colorPowerSliders[CYAN_INDEX].red, colorPowerSliders[CYAN_INDEX].orange, colorPowerSliders[CYAN_INDEX].cyan,
+		colorRadiusSliders[CYAN_INDEX].green, colorRadiusSliders[CYAN_INDEX].red, colorRadiusSliders[CYAN_INDEX].orange, colorRadiusSliders[CYAN_INDEX].cyan,
 		static_cast<float>(numberSliderG),
 		static_cast<float>(numberSliderR),
 		static_cast<float>(numberSliderO),
@@ -264,38 +268,38 @@ void ofApp::loadSettings()
 	}
 	else
 	{
-		powerSliderGG = p[0];
-		powerSliderGR = p[1];
-		powerSliderGO = p[2];
-		powerSliderGC = p[3];
-		vSliderGG = p[4];
-		vSliderGR = p[5];
-		vSliderGO = p[6];
-		vSliderGC = p[7];
-		powerSliderRG = p[8];
-		powerSliderRR = p[9];
-		powerSliderRO = p[10];
-		powerSliderRC = p[11];
-		vSliderRG = p[12];
-		vSliderRR = p[13];
-		vSliderRO = p[14];
-		vSliderRC = p[15];
-		powerSliderOG = p[16];
-		powerSliderOR = p[17];
-		powerSliderOO = p[18];
-		powerSliderOC = p[19];
-		vSliderOG = p[20];
-		vSliderOR = p[21];
-		vSliderOO = p[22];
-		vSliderOC = p[23];
-		powerSliderCG = p[24];
-		powerSliderCR = p[25];
-		powerSliderCO = p[26];
-		powerSliderCC = p[27];
-		vSliderCG = p[28];
-		vSliderCR = p[29];
-		vSliderCO = p[30];
-		vSliderCC = p[31];
+		colorPowerSliders[GREEN_INDEX].green  = p[0];
+		colorPowerSliders[GREEN_INDEX].red    = p[1];
+		colorPowerSliders[GREEN_INDEX].orange = p[2];
+		colorPowerSliders[GREEN_INDEX].cyan   = p[3];
+		colorRadiusSliders[GREEN_INDEX].green = p[4];
+		colorRadiusSliders[GREEN_INDEX].red    = p[5];
+		colorRadiusSliders[GREEN_INDEX].orange = p[6];
+		colorRadiusSliders[GREEN_INDEX].cyan   = p[7];
+		colorPowerSliders[RED_INDEX].green  = p[8];
+		colorPowerSliders[RED_INDEX].red    = p[9];
+		colorPowerSliders[RED_INDEX].orange = p[10];
+		colorPowerSliders[RED_INDEX].cyan   = p[11];
+		colorRadiusSliders[RED_INDEX].green  = p[12];
+		colorRadiusSliders[RED_INDEX].red    = p[13];
+		colorRadiusSliders[RED_INDEX].orange = p[14];
+		colorRadiusSliders[RED_INDEX].cyan   = p[15];
+		colorPowerSliders[ORANGE_INDEX].green  = p[16];
+		colorPowerSliders[ORANGE_INDEX].red    = p[17];
+		colorPowerSliders[ORANGE_INDEX].orange = p[18];
+		colorPowerSliders[ORANGE_INDEX].cyan   = p[19];
+		colorRadiusSliders[ORANGE_INDEX].green  = p[20];
+		colorRadiusSliders[ORANGE_INDEX].red    = p[21];
+		colorRadiusSliders[ORANGE_INDEX].orange = p[22];
+		colorRadiusSliders[ORANGE_INDEX].cyan   = p[23];
+		colorPowerSliders[CYAN_INDEX].green  = p[24];
+		colorPowerSliders[CYAN_INDEX].red    = p[25];
+		colorPowerSliders[CYAN_INDEX].orange = p[26];
+		colorPowerSliders[CYAN_INDEX].cyan   = p[27];
+		colorRadiusSliders[CYAN_INDEX].green  = p[28];
+		colorRadiusSliders[CYAN_INDEX].red    = p[29];
+		colorRadiusSliders[CYAN_INDEX].orange = p[30];
+		colorRadiusSliders[CYAN_INDEX].cyan   = p[31];
 		numberSliderG = static_cast<int>(p[32]);
 		numberSliderR = static_cast<int>(p[33]);
 		numberSliderO = static_cast<int>(p[34]);
@@ -347,60 +351,60 @@ void ofApp::setup()
 
 	// GREEN
 	greenGroup.setup("Green");
-	greenGroup.add(powerSliderGG.setup("green x green:", ppowerSliderGG, -100, 100));
-	greenGroup.add(powerSliderGR.setup("green x red:", ppowerSliderGR, -100, 100));
-	greenGroup.add(powerSliderGO.setup("green x orange:", ppowerSliderGO, -100, 100));
-	greenGroup.add(powerSliderGC.setup("green x cyan:", ppowerSliderGC, -100, 100));
+	greenGroup.add(colorPowerSliders[GREEN_INDEX].green .setup("green x green:", defaultPowerValue, -100, 100));
+	greenGroup.add(colorPowerSliders[GREEN_INDEX].red   .setup("green x red:", defaultPowerValue, -100, 100));
+	greenGroup.add(colorPowerSliders[GREEN_INDEX].orange.setup("green x orange:", defaultPowerValue, -100, 100));
+	greenGroup.add(colorPowerSliders[GREEN_INDEX].cyan  .setup("green x cyan:", defaultPowerValue, -100, 100));
 
-	greenGroup.add(vSliderGG.setup("radius g x g:", pvSliderGG, 10, 500));
-	greenGroup.add(vSliderGR.setup("radius g x r:", pvSliderGR, 10, 500));
-	greenGroup.add(vSliderGO.setup("radius g x o:", pvSliderGO, 10, 500));
-	greenGroup.add(vSliderGC.setup("radius g x c:", pvSliderGC, 10, 500));
+	greenGroup.add(colorRadiusSliders[GREEN_INDEX].green .setup("radius g x g:", defaultRadiusValue, 10, 500));
+	greenGroup.add(colorRadiusSliders[GREEN_INDEX].red   .setup("radius g x r:", defaultRadiusValue, 10, 500));
+	greenGroup.add(colorRadiusSliders[GREEN_INDEX].orange.setup("radius g x o:", defaultRadiusValue, 10, 500));
+	greenGroup.add(colorRadiusSliders[GREEN_INDEX].cyan  .setup("radius g x c:", defaultRadiusValue, 10, 500));
 
 	greenGroup.minimize();
 	gui.add(&greenGroup);
 
 	// RED
 	redGroup.setup("Red");
-	redGroup.add(powerSliderRR.setup("red x red:", ppowerSliderRR, -100, 100));
-	redGroup.add(powerSliderRG.setup("red x green:", ppowerSliderRG, -100, 100));
-	redGroup.add(powerSliderRO.setup("red x orange:", ppowerSliderRO, -100, 100));
-	redGroup.add(powerSliderRC.setup("red x cyan:", ppowerSliderRC, -100, 100));
+	redGroup.add(colorPowerSliders[RED_INDEX].red   .setup("red x red:", defaultPowerValue, -100, 100));
+	redGroup.add(colorPowerSliders[RED_INDEX].green .setup("red x green:", defaultPowerValue, -100, 100));
+	redGroup.add(colorPowerSliders[RED_INDEX].orange.setup("red x orange:", defaultPowerValue, -100, 100));
+	redGroup.add(colorPowerSliders[RED_INDEX].cyan  .setup("red x cyan:", defaultPowerValue, -100, 100));
 
-	redGroup.add(vSliderRG.setup("radius r x g:", pvSliderRG, 10, 500));
-	redGroup.add(vSliderRR.setup("radius r x r:", pvSliderRR, 10, 500));
-	redGroup.add(vSliderRO.setup("radius r x o:", pvSliderRO, 10, 500));
-	redGroup.add(vSliderRC.setup("radius r x c:", pvSliderRC, 10, 500));
+	redGroup.add(colorRadiusSliders[RED_INDEX].green .setup("radius r x g:", defaultRadiusValue, 10, 500));
+	redGroup.add(colorRadiusSliders[RED_INDEX].red   .setup("radius r x r:", defaultRadiusValue, 10, 500));
+	redGroup.add(colorRadiusSliders[RED_INDEX].orange.setup("radius r x o:", defaultRadiusValue, 10, 500));
+	redGroup.add(colorRadiusSliders[RED_INDEX].cyan  .setup("radius r x c:", defaultRadiusValue, 10, 500));
 
 	redGroup.minimize();
 	gui.add(&redGroup);
 
 	// WHITE
 	ornageGroup.setup("Orange");
-	ornageGroup.add(powerSliderOO.setup("Orange x Orange:", ppowerSliderOO, -100, 100));
-	ornageGroup.add(powerSliderOR.setup("Orange x red:", ppowerSliderOR, -100, 100));
-	ornageGroup.add(powerSliderOG.setup("Orange x green:", ppowerSliderOG, -100, 100));
-	ornageGroup.add(powerSliderOC.setup("Orange x Cyan:", ppowerSliderOC, -100, 100));
+	ornageGroup.add(colorPowerSliders[ORANGE_INDEX].orange.setup("Orange x Orange:", defaultPowerValue, -100, 100));
+	ornageGroup.add(colorPowerSliders[ORANGE_INDEX].red   .setup("Orange x red:", defaultPowerValue, -100, 100));
+	ornageGroup.add(colorPowerSliders[ORANGE_INDEX].green .setup("Orange x green:", defaultPowerValue, -100, 100));
+	ornageGroup.add(colorPowerSliders[ORANGE_INDEX].cyan  .setup("Orange x Cyan:", defaultPowerValue, -100, 100));
 
-	ornageGroup.add(vSliderOG.setup("radius w x g:", pvSliderOG, 10, 500));
-	ornageGroup.add(vSliderOR.setup("radius w x r:", pvSliderOR, 10, 500));
-	ornageGroup.add(vSliderOO.setup("radius w x o:", pvSliderOO, 10, 500));
-	ornageGroup.add(vSliderOC.setup("radius w x c:", pvSliderOC, 10, 500));
+	ornageGroup.add(colorRadiusSliders[ORANGE_INDEX].green .setup("radius o x g:", defaultRadiusValue, 10, 500));
+	ornageGroup.add(colorRadiusSliders[ORANGE_INDEX].red   .setup("radius o x r:", defaultRadiusValue, 10, 500));
+	ornageGroup.add(colorRadiusSliders[ORANGE_INDEX].orange.setup("radius o x o:", defaultRadiusValue, 10, 500));
+	ornageGroup.add(colorRadiusSliders[ORANGE_INDEX].cyan  .setup("radius o x c:", defaultRadiusValue, 10, 500));
 
 	ornageGroup.minimize();
 	gui.add(&ornageGroup);
 
 	// yellow
 	cyanGroup.setup("Cyan");
-	cyanGroup.add(powerSliderCC.setup("Cyan x Cyan:", ppowerSliderCC, -100, 100));
-	cyanGroup.add(powerSliderCO.setup("Cyan x Orange:", ppowerSliderCO, -100, 100));
-	cyanGroup.add(powerSliderCR.setup("Cyan x red:", ppowerSliderCR, -100, 100));
-	cyanGroup.add(powerSliderCG.setup("Cyan x green:", ppowerSliderCG, -100, 100));
+	cyanGroup.add(colorPowerSliders[CYAN_INDEX].cyan  .setup("Cyan x Cyan:", defaultPowerValue, -100, 100));
+	cyanGroup.add(colorPowerSliders[CYAN_INDEX].orange.setup("Cyan x Orange:", defaultPowerValue, -100, 100));
+	cyanGroup.add(colorPowerSliders[CYAN_INDEX].red   .setup("Cyan x red:", defaultPowerValue, -100, 100));
+	cyanGroup.add(colorPowerSliders[CYAN_INDEX].green .setup("Cyan x green:", defaultPowerValue, -100, 100));
 
-	cyanGroup.add(vSliderCG.setup("radius y x g:", pvSliderCG, 10, 500));
-	cyanGroup.add(vSliderCR.setup("radius y x r:", pvSliderCR, 10, 500));
-	cyanGroup.add(vSliderCO.setup("radius y x o:", pvSliderCO, 10, 500));
-	cyanGroup.add(vSliderCC.setup("radius y x c:", pvSliderCC, 10, 500));
+	cyanGroup.add(colorRadiusSliders[CYAN_INDEX].green .setup("radius c x g:", defaultRadiusValue, 10, 500));
+	cyanGroup.add(colorRadiusSliders[CYAN_INDEX].red   .setup("radius c x r:", defaultRadiusValue, 10, 500));
+	cyanGroup.add(colorRadiusSliders[CYAN_INDEX].orange.setup("radius c x o:", defaultRadiusValue, 10, 500));
+	cyanGroup.add(colorRadiusSliders[CYAN_INDEX].cyan  .setup("radius c x c:", defaultRadiusValue, 10, 500));
 
 	cyanGroup.minimize();
 	gui.add(&cyanGroup);
@@ -409,8 +413,7 @@ void ofApp::setup()
 	expGroup.add(evoToggle.setup("Evolve parameters", false));
 	expGroup.add(evoProbSlider.setup("evo chance%", evoChance, 0, 100));
 	expGroup.add(evoAmountSlider.setup("evo amount%%", evoAmount, 0, 100));
-	//expGroup.add(radiusToogle.setup("infinite radius", false));
-	//expGroup.add(probabilitySlider.setup("interaction prob%", probability, 1, 100));
+
 	expGroup.add(motionBlurToggle.setup("Motion Blur", false));
 	expGroup.add(physicLabel.setup("physic (ms)", "0"));
 
@@ -418,7 +421,7 @@ void ofApp::setup()
 	gui.add(&expGroup);
 
 	ofSetBackgroundAuto(false);
-	//ofDisableAlphaBlending();
+
 
 	random();
 	restart();
@@ -451,22 +454,22 @@ void ofApp::update()
 		}
 	}
 
-		interaction(red,   red,   powerSliderRR, vSliderRR, boundsToggle); 
-		interaction(red,   green, powerSliderRR, vSliderRG, boundsToggle);
-		interaction(red,   cyan,  powerSliderRR, vSliderRC, boundsToggle);
-		interaction(red,   orange, powerSliderRR, vSliderRO, boundsToggle);
-		interaction(green, red,   powerSliderGR, vSliderGR, boundsToggle);
-		interaction(green, green, powerSliderGG, vSliderGG, boundsToggle);
-		interaction(green, cyan,  powerSliderGC, vSliderGC, boundsToggle);
-		interaction(green, orange, powerSliderGO, vSliderGO, boundsToggle);
-		interaction(cyan,  red,   powerSliderCR, vSliderCR, boundsToggle);
-		interaction(cyan,  green, powerSliderCG, vSliderCG, boundsToggle);
-		interaction(cyan,  cyan,  powerSliderCC, vSliderCC, boundsToggle);
-		interaction(cyan,  orange, powerSliderCO, vSliderCO, boundsToggle);
-		interaction(orange, red,   powerSliderOR, vSliderOR, boundsToggle);
-		interaction(orange, green, powerSliderOG, vSliderOG, boundsToggle);
-		interaction(orange, cyan,  powerSliderOC, vSliderOC, boundsToggle);
-		interaction(orange, orange, powerSliderOO, vSliderOO, boundsToggle);
+		interaction(red,   red,    colorPowerSliders[RED_INDEX].red,        colorRadiusSliders[RED_INDEX].red, boundsToggle);
+		interaction(red,   green,  colorPowerSliders[RED_INDEX].green,      colorRadiusSliders[RED_INDEX].green, boundsToggle);
+		interaction(red,   cyan,   colorPowerSliders[RED_INDEX].cyan,       colorRadiusSliders[RED_INDEX].cyan, boundsToggle);
+		interaction(red,   orange, colorPowerSliders[RED_INDEX].orange,     colorRadiusSliders[RED_INDEX].orange, boundsToggle);
+		interaction(green, red,    colorPowerSliders[GREEN_INDEX].red,      colorRadiusSliders[GREEN_INDEX].red, boundsToggle);
+		interaction(green, green,  colorPowerSliders[GREEN_INDEX].green,    colorRadiusSliders[GREEN_INDEX].green, boundsToggle);
+		interaction(green, cyan,   colorPowerSliders[GREEN_INDEX].cyan,     colorRadiusSliders[GREEN_INDEX].cyan, boundsToggle);
+		interaction(green, orange, colorPowerSliders[GREEN_INDEX].orange,   colorRadiusSliders[GREEN_INDEX].orange, boundsToggle);
+		interaction(cyan,  red,    colorPowerSliders[CYAN_INDEX].red,       colorRadiusSliders[CYAN_INDEX].red, boundsToggle);
+		interaction(cyan,  green,  colorPowerSliders[CYAN_INDEX].green,     colorRadiusSliders[CYAN_INDEX].green, boundsToggle);
+		interaction(cyan,  cyan,   colorPowerSliders[CYAN_INDEX].cyan,      colorRadiusSliders[CYAN_INDEX].cyan, boundsToggle);
+		interaction(cyan,  orange, colorPowerSliders[CYAN_INDEX].orange,    colorRadiusSliders[CYAN_INDEX].orange, boundsToggle);
+		interaction(orange, red,   colorPowerSliders[ORANGE_INDEX].red,     colorRadiusSliders[ORANGE_INDEX].red, boundsToggle);
+		interaction(orange, green, colorPowerSliders[ORANGE_INDEX].green,   colorRadiusSliders[ORANGE_INDEX].green, boundsToggle);
+		interaction(orange, cyan,  colorPowerSliders[ORANGE_INDEX].cyan,    colorRadiusSliders[ORANGE_INDEX].cyan, boundsToggle);
+		interaction(orange, orange, colorPowerSliders[ORANGE_INDEX].orange, colorRadiusSliders[ORANGE_INDEX].orange, boundsToggle);
 		
 	
 	if (save) { saveSettings(); }
