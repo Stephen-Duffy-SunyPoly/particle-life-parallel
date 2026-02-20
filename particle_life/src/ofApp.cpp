@@ -5,7 +5,6 @@
 #include <vector>
 #include <random>
 #include <fstream>
-//#include "oneapi/tbb.h"
 
 
 //Simulation parameters
@@ -39,25 +38,23 @@ void ofApp::interaction(colorGroup& Group1, const colorGroup& Group2,
 	
 	const float g = G / -100;	// attraction coefficient
 
-	//#pragma omp parallel
-	for (size_t i = 0; i < Group1.pos.size(); i++)
+	for (size_t i = 0; i < Group1.pos.size(); i++) // for each object in this group
 	{
 		float fx = 0.0F;	// force on x
 		float fy = 0.0F;	// force on y
 		
 		
-		for (size_t j = 0; j < Group2.pos.size(); j++)
+		for (size_t j = 0; j < Group2.pos.size(); j++) //for each object in the other group
 		{
 			if (Group1.pos[i] != Group2.pos[j])
 			{
+				//direct multiplication is more efficient then pow
+				//			         this is inefficient, why compute that difference twice when we could compute it once
 				const float distance_squared = ((Group1.pos[i].x - Group2.pos[j].x) * (Group1.pos[i].x - Group2.pos[j].x))
-					+ ((Group1.pos[i].y - Group2.pos[j].y) * (Group1.pos[i].y - Group2.pos[j].y));
-
-				// if distance < radius, apply the force, otherwise, force = 0
-	//			const float force = distance_squared < radius*radius ? 1 / (std::max(std::numeric_limits<float>::epsilon(), std::sqrtf(distance_squared))) : 0.0F;
-	//			fx += ((Group1.pos[i].x - Group2.pos[j].x) * force);
-	//			fy += ((Group1.pos[i].y - Group2.pos[j].y) * force);
-				const float force = distance_squared < radius* radius ? 1.0F / std::sqrtf(distance_squared) : 0.0F;
+											 + ((Group1.pos[i].y - Group2.pos[j].y) * (Group1.pos[i].y - Group2.pos[j].y));
+				// pre compute radius squared
+				const float force = distance_squared < radius * radius ? 1.0F / std::sqrtf(distance_squared) : 0.0F;
+				//re use pre computerd diffs here
 				fx += ((Group1.pos[i].x - Group2.pos[j].x) * force);
 				fy += ((Group1.pos[i].y - Group2.pos[j].y) * force);
 			}
@@ -73,10 +70,13 @@ void ofApp::interaction(colorGroup& Group1, const colorGroup& Group2,
 		}
 
 		// Viscosity & gravity
+		//perhaps store this computation of viscosity instead of what is currently stored
+		//sture the computed velocities locally and reduce them together after each thread for a specific color finishes its job
 		Group1.vel[i].x = (Group1.vel[i].x + (fx * g)) * (1.0 - viscosity);
 		Group1.vel[i].y = (Group1.vel[i].y + (fy * g)) * (1.0 - viscosity) + worldGravity;
 
-		//Update position
+		//Update position do this outsize of the loop, after each thread does its thing, loop through every point and update this value
+		//TODO use the opperator overload for this
 		Group1.pos[i].x += Group1.vel[i].x;
 		Group1.pos[i].y += Group1.vel[i].y;
 	}
@@ -450,27 +450,6 @@ void ofApp::update()
 			if (*slider > 200.0F) *slider = 200.0F;
 		}
 	}
-
-	/*
-	oneapi::tbb::parallel_invoke(
-		[&] { interaction(red,   red,   powerSliderRR, vSliderRR, boundsToggle); },
-		[&] { interaction(red,   green, powerSliderRR, vSliderRG, boundsToggle); },
-		[&] { interaction(red,   yellow,  powerSliderRR, vSliderRY, boundsToggle); },
-		[&] { interaction(red,   white, powerSliderRR, vSliderRW, boundsToggle); },
-		[&] { interaction(green, red,   powerSliderGR, vSliderGR, boundsToggle); },
-		[&] { interaction(green, green, powerSliderGG, vSliderGG, boundsToggle); },
-		[&] { interaction(green, yellow,  powerSliderGY, vSliderGY, boundsToggle); },
-		[&] { interaction(green, white, powerSliderGW, vSliderGW, boundsToggle); },
-		[&] { interaction(yellow,  red,   powerSliderYR, vSliderYR, boundsToggle); },
-		[&] { interaction(yellow,  green, powerSliderYG, vSliderYG, boundsToggle); },
-		[&] { interaction(yellow,  yellow,  powerSliderYY, vSliderYY, boundsToggle); },
-		[&] { interaction(yellow,  white, powerSliderYW, vSliderYW, boundsToggle); },
-		[&] { interaction(white, red,   powerSliderWR, vSliderWR, boundsToggle); },
-		[&] { interaction(white, green, powerSliderWG, vSliderWG, boundsToggle); },
-		[&] { interaction(white, yellow,  powerSliderWY, vSliderWY, boundsToggle); },
-		[&] { interaction(white, white, powerSliderWW, vSliderWW, boundsToggle); }
-	);
-	*/
 
 		interaction(red,   red,   powerSliderRR, vSliderRR, boundsToggle); 
 		interaction(red,   green, powerSliderRR, vSliderRG, boundsToggle);

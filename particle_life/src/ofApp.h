@@ -39,6 +39,7 @@ public:
 	ofxPanel gui;
 	ofVbo vbo;
 
+	//TODO change these colors to match web version
 	colorGroup green;
 	colorGroup red;
 	colorGroup white;
