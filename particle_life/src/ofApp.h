@@ -42,8 +42,8 @@ public:
 	//TODO change these colors to match web version
 	colorGroup green;
 	colorGroup red;
-	colorGroup white;
-	colorGroup yellow;
+	colorGroup orange;
+	colorGroup cyan;
 
 	int cntFps = 0;
 	clock_t now, lastTime, delta;
@@ -55,8 +55,8 @@ public:
 	ofxGuiGroup qtyGroup;
 	ofxGuiGroup redGroup;
 	ofxGuiGroup greenGroup;
-	ofxGuiGroup yellowGroup;
-	ofxGuiGroup whiteGroup;
+	ofxGuiGroup cyanGroup;
+	ofxGuiGroup ornageGroup;
 #pragma endregion guigroup
 
 	ofxButton resetButton;
@@ -87,8 +87,8 @@ public:
 #pragma region slider
 	ofxIntSlider numberSliderR;
 	ofxIntSlider numberSliderG;
-	ofxIntSlider numberSliderW;
-	ofxIntSlider numberSliderY;
+	ofxIntSlider numberSliderO;
+	ofxIntSlider numberSliderC;
 
 	ofxFloatSlider viscoSlider;
 	ofxFloatSlider gravitySlider;
@@ -96,56 +96,56 @@ public:
 
 	ofxFloatSlider powerSliderRR;
 	ofxFloatSlider powerSliderRG;
-	ofxFloatSlider powerSliderRW;
-	ofxFloatSlider powerSliderRY;
+	ofxFloatSlider powerSliderRO;
+	ofxFloatSlider powerSliderRC;
 	
 	ofxFloatSlider powerSliderGR;
 	ofxFloatSlider powerSliderGG;
-	ofxFloatSlider powerSliderGW;
-	ofxFloatSlider powerSliderGY;
+	ofxFloatSlider powerSliderGO;
+	ofxFloatSlider powerSliderGC;
 	
-	ofxFloatSlider powerSliderWR;
-	ofxFloatSlider powerSliderWG;
-	ofxFloatSlider powerSliderWW;
-	ofxFloatSlider powerSliderWY;
+	ofxFloatSlider powerSliderOR;
+	ofxFloatSlider powerSliderOG;
+	ofxFloatSlider powerSliderOO;
+	ofxFloatSlider powerSliderOC;
 	
-	ofxFloatSlider powerSliderYR;
-	ofxFloatSlider powerSliderYG;
-	ofxFloatSlider powerSliderYW;
-	ofxFloatSlider powerSliderYY;
+	ofxFloatSlider powerSliderCR;
+	ofxFloatSlider powerSliderCG;
+	ofxFloatSlider powerSliderCO;
+	ofxFloatSlider powerSliderCC;
 	
 	ofxFloatSlider vSliderRR;
 	ofxFloatSlider vSliderRG;
-	ofxFloatSlider vSliderRW;
-	ofxFloatSlider vSliderRY;
+	ofxFloatSlider vSliderRO;
+	ofxFloatSlider vSliderRC;
 	
 	ofxFloatSlider vSliderGR;
 	ofxFloatSlider vSliderGG;
-	ofxFloatSlider vSliderGW;
-	ofxFloatSlider vSliderGY;
+	ofxFloatSlider vSliderGO;
+	ofxFloatSlider vSliderGC;
 	
-	ofxFloatSlider vSliderWR;
-	ofxFloatSlider vSliderWG;
-	ofxFloatSlider vSliderWW;
-	ofxFloatSlider vSliderWY;
+	ofxFloatSlider vSliderOR;
+	ofxFloatSlider vSliderOG;
+	ofxFloatSlider vSliderOO;
+	ofxFloatSlider vSliderOC;
 
-	ofxFloatSlider vSliderYR;
-	ofxFloatSlider vSliderYG;
-	ofxFloatSlider vSliderYW;
-	ofxFloatSlider vSliderYY;
+	ofxFloatSlider vSliderCR;
+	ofxFloatSlider vSliderCG;
+	ofxFloatSlider vSliderCO;
+	ofxFloatSlider vSliderCC;
 
 	vector<ofxFloatSlider*> powersliders = {
-		&powerSliderRR, &powerSliderRG, &powerSliderRY, &powerSliderRW,
-		&powerSliderGR, &powerSliderGG, &powerSliderGY, &powerSliderGW,
-		&powerSliderYR, &powerSliderYG, &powerSliderYY, &powerSliderYW,
-		&powerSliderWR, &powerSliderWG, &powerSliderWY, &powerSliderWW,
+		&powerSliderRR, &powerSliderRG, &powerSliderRC, &powerSliderRO,
+		&powerSliderGR, &powerSliderGG, &powerSliderGC, &powerSliderGO,
+		&powerSliderCR, &powerSliderCG, &powerSliderCC, &powerSliderCO,
+		&powerSliderOR, &powerSliderOG, &powerSliderOC, &powerSliderOO,
 	};
 
 	vector<ofxFloatSlider*> vsliders = {
-		&vSliderRR, &vSliderRG, &vSliderRY, &vSliderRW,
-		&vSliderGR, &vSliderGG, &vSliderGY, &vSliderGW,
-		&vSliderYR, &vSliderYG, &vSliderYY, &vSliderYW,
-		&vSliderWR, &vSliderWG, &vSliderWY, &vSliderWW,
+		&vSliderRR, &vSliderRG, &vSliderRC, &vSliderRO,
+		&vSliderGR, &vSliderGG, &vSliderGC, &vSliderGO,
+		&vSliderCR, &vSliderCG, &vSliderCC, &vSliderCO,
+		&vSliderOR, &vSliderOG, &vSliderOC, &vSliderOO,
 	};
 
 #pragma endregion slider
@@ -153,48 +153,48 @@ public:
 #pragma region slider values
 	unsigned int pnumberSliderR = 1000;
 	unsigned int pnumberSliderG = 1000;
-	unsigned int pnumberSliderW = 1000;
-	unsigned int pnumberSliderY = 1000;
+	unsigned int pnumberSliderO = 1000;
+	unsigned int pnumberSliderC = 1000;
 
 	float ppowerSliderRR = 0;
 	float ppowerSliderRG = 0;
-	float ppowerSliderRW = 0;
-	float ppowerSliderRY = 0;
+	float ppowerSliderRO = 0;
+	float ppowerSliderRC = 0;
 	
 	float ppowerSliderGR = 0;
 	float ppowerSliderGG = 0;
-	float ppowerSliderGW = 0;
-	float ppowerSliderGY = 0;
+	float ppowerSliderGO = 0;
+	float ppowerSliderGC = 0;
 
-	float ppowerSliderWR = 0;
-	float ppowerSliderWG = 0;
-	float ppowerSliderWW = 0;
-	float ppowerSliderWY = 0;
+	float ppowerSliderOR = 0;
+	float ppowerSliderOG = 0;
+	float ppowerSliderOO = 0;
+	float ppowerSliderOC = 0;
 
-	float ppowerSliderYR = 0;
-	float ppowerSliderYG = 0;
-	float ppowerSliderYW = 0;
-	float ppowerSliderYY = 0;
+	float ppowerSliderCR = 0;
+	float ppowerSliderCG = 0;
+	float ppowerSliderCO = 0;
+	float ppowerSliderCC = 0;
 
 	float pvSliderRR = 180;
 	float pvSliderRG = 180;
-	float pvSliderRW = 180;
-	float pvSliderRY = 180;
+	float pvSliderRO = 180;
+	float pvSliderRC = 180;
 
 	float pvSliderGR = 180;
 	float pvSliderGG = 180;
-	float pvSliderGW = 180;
-	float pvSliderGY = 180;
+	float pvSliderGO = 180;
+	float pvSliderGC = 180;
 
-	float pvSliderWR = 180;
-	float pvSliderWG = 180;
-	float pvSliderWW = 180;
-	float pvSliderWY = 180;
+	float pvSliderOR = 180;
+	float pvSliderOG = 180;
+	float pvSliderOO = 180;
+	float pvSliderOC = 180;
 
-	float pvSliderYR = 180;
-	float pvSliderYG = 180;
-	float pvSliderYW = 180;
-	float pvSliderYY = 180;
+	float pvSliderCR = 180;
+	float pvSliderCG = 180;
+	float pvSliderCO = 180;
+	float pvSliderCC = 180;
 
 #pragma endregion slider values
 
