@@ -46,13 +46,14 @@ void ofApp::interaction(colorGroup& Group1, const colorGroup& Group2,
 		
 		for (size_t j = 0; j < Group2.pos.size(); j++) //for each object in the other group
 		{
+			//store the positions for both this and the other particle in a local var, as well as have the velocity total as a local var as well
 			if (Group1.pos[i] != Group2.pos[j])
 			{
 				//direct multiplication is more efficient then pow
 				//			         this is inefficient, why compute that difference twice when we could compute it once
 				const float distance_squared = ((Group1.pos[i].x - Group2.pos[j].x) * (Group1.pos[i].x - Group2.pos[j].x))
 											 + ((Group1.pos[i].y - Group2.pos[j].y) * (Group1.pos[i].y - Group2.pos[j].y));
-				// pre compute radius squared
+				// pre compute radius squared outside of loop
 				const float force = distance_squared < radius * radius ? 1.0F / std::sqrtf(distance_squared) : 0.0F;
 				//store these values to a thread local cache
 				//re-use pre-computed diffs here
