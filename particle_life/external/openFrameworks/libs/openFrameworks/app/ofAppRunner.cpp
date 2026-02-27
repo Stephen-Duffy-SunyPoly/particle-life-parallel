@@ -30,7 +30,7 @@ using std::shared_ptr;
 #endif
 
 #ifdef TARGET_LINUX
-#include "ofGstUtils.h"
+// #include "ofGstUtils.h"
 #endif
 
 // adding this for vc2010 compile: error C3861: 'closeQuicktime': identifier not found
@@ -266,7 +266,7 @@ void ofExitCallback(){
 	//------------------------
 	// try to close gstreamer
 	#ifdef TARGET_LINUX
-		ofGstUtils::quitGstMainLoop();
+		// ofGstUtils::quitGstMainLoop();
 	#endif
 
 	//------------------------

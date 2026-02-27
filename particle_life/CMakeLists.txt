@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.22.1)
 project(particle_life LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -106,8 +106,8 @@ target_include_directories(pugixml_lib PUBLIC
 # ----- tinyfiledialogs -----
 FetchContent_Declare(
         tinyfiledialogs
-        GIT_REPOSITORY https://git.code.sf.net/p/tinyfiledialogs/code tinyfiledialogs-code
-        GIT_TAG        master
+        GIT_REPOSITORY https://github.com/native-toolkit/libtinyfiledialogs
+        GIT_TAG        2.9.3
 )
 FetchContent_MakeAvailable(tinyfiledialogs)
 
@@ -157,6 +157,7 @@ FetchContent_Declare(
         GIT_TAG master
 )
 set(RTAUDIO_TARGETNAME_UNINSTALL "rtaudio_uninstall" CACHE STRING "Rename uninstall target to avoid conflicts")
+set(RTAUDIO_API_ALSA off) # diable ALSA for linux because we do not need it and it also adds complications
 FetchContent_MakeAvailable(rtaudio)
 
 ########################################
@@ -206,6 +207,10 @@ file(GLOB_RECURSE OF_SOUNDS_SRC
         external/openFrameworks/libs/openFrameworks/sound/*.cpp
 )
 
+if (NOT WIN32)
+    list(FILTER OF_SOUNDS_SRC EXCLUDE REGEX "ofMediaFoundationSoundPlayer.cpp")
+endif ()
+
 file(GLOB_RECURSE OF_COMMUNICATION_SRC
         external/openFrameworks/libs/openFrameworks/communication/*.cpp
 )
@@ -213,11 +218,11 @@ file(GLOB_RECURSE OF_COMMUNICATION_SRC
 file(GLOB_RECURSE OF_VIDEO_SRC
         external/openFrameworks/libs/openFrameworks/video/*.cpp
 )
-if(WIN32)
-    list(FILTER OF_VIDEO_SRC EXCLUDE REGEX "ofGstUtils.cpp")
-    list(FILTER OF_VIDEO_SRC EXCLUDE REGEX "ofGstVideoGrabber.cpp")
-    list(FILTER OF_VIDEO_SRC EXCLUDE REGEX "ofGstVideoPlayer.cpp")
-endif()
+#we do not need this and it is a problem so out it goes
+list(FILTER OF_VIDEO_SRC EXCLUDE REGEX "ofGstUtils.cpp")
+list(FILTER OF_VIDEO_SRC EXCLUDE REGEX "ofGstVideoGrabber.cpp")
+list(FILTER OF_VIDEO_SRC EXCLUDE REGEX "ofGstVideoPlayer.cpp")
+
 
 #add_library(FreeImageLib STATIC IMPORTED)
 #set_target_properties(FreeImageLib PROPERTIES

@@ -57,7 +57,11 @@ void ofApp::interaction(colorGroup& Group1, const colorGroup& Group2,
 	//			const float force = distance_squared < radius*radius ? 1 / (std::max(std::numeric_limits<float>::epsilon(), std::sqrtf(distance_squared))) : 0.0F;
 	//			fx += ((Group1.pos[i].x - Group2.pos[j].x) * force);
 	//			fy += ((Group1.pos[i].y - Group2.pos[j].y) * force);
+			#ifdef _WIN32
 				const float force = distance_squared < radius* radius ? 1.0F / std::sqrtf(distance_squared) : 0.0F;
+			#else
+				const float force = distance_squared < radius* radius ? 1.0F / std::sqrt(distance_squared) : 0.0F;
+			#endif
 				fx += ((Group1.pos[i].x - Group2.pos[j].x) * force);
 				fy += ((Group1.pos[i].y - Group2.pos[j].y) * force);
 			}
