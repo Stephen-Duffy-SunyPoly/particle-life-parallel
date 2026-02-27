@@ -338,4 +338,17 @@ target_include_directories(particle_life PRIVATE
         external/openFrameworks/addons/ofxGui/src
 )
 
-target_link_libraries(particle_life PRIVATE openFrameworks ofxGui)
+if(WIN32)
+    target_link_libraries(particle_life PRIVATE openFrameworks ofxGui)
+else ()
+    find_package(OpenGL REQUIRED)
+    find_package(Fontconfig REQUIRED)
+
+    target_link_libraries(particle_life PRIVATE
+            openFrameworks
+            ofxGui
+            OpenGL::GL
+            OpenGL::GLU
+            Fontconfig::Fontconfig
+    )
+endif ()

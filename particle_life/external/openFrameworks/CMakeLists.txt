@@ -30,6 +30,7 @@ add_subdirectory(libs/glfw)
 
 # Link to it
 
+if (WIN32)
 target_link_libraries(openFrameworks
         PUBLIC
         OpenGL::GL
@@ -38,3 +39,16 @@ target_link_libraries(openFrameworks
         ws2_32
         glew
 )
+else ()
+    target_link_libraries(openFrameworks
+            PRIVATE
+            OpenGL::GL
+            GLU
+            X11
+            pthread
+            dl
+            glfw
+            glew
+            GLEW::GLEW
+    )
+endif ()
