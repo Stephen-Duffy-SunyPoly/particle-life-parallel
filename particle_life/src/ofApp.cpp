@@ -17,6 +17,7 @@ struct ComputeThreadInfo {
 	int parentColorIndex=0;
 	vector<ofVec2f> velocities;
 	bool shutdown = false;
+	ofApp *app;
 };
 
 struct ManagementThreadInfo {
@@ -24,11 +25,23 @@ struct ManagementThreadInfo {
 	std::thread thread;
 	std::mutex startSync;
 	std::mutex endSync;
-	int colorIndex;
+	int colorIndex=0;
 	vector<ofVec2f> &combinedVelocities;//direct ref to the velocity's in the color group
-	bool shutdown;
+	bool shutdown=false;
+	ofApp *app = nullptr;
 };
 
+void managementThread(ManagementThreadInfo * info);
+
+vector<ofVec2f> tmpInit;
+
+//default initializations
+ManagementThreadInfo managementThreads[4] = {
+	{{},{},{},{},0,tmpInit,false,nullptr},
+	{{},{},{},{},0,tmpInit,false,nullptr},
+	{{},{},{},{},0,tmpInit,false,nullptr},
+	{{},{},{},{},0,tmpInit,false,nullptr}
+};
 
 //Simulation parameters
 
@@ -154,6 +167,11 @@ void ofApp::restart()
 	vbo.setVertexData(colorGroups[RED_INDEX].pos.data(),    colorGroups[RED_INDEX].pos.size(),    GL_STREAM_DRAW);
 	vbo.setVertexData(colorGroups[ORANGE_INDEX].pos.data(),  colorGroups[ORANGE_INDEX].pos.size(),  GL_STREAM_DRAW);
 	vbo.setVertexData(colorGroups[CYAN_INDEX].pos.data(), colorGroups[CYAN_INDEX].pos.size(), GL_STREAM_DRAW);
+
+	//update the velocity references for the management thread
+	for (int i=0;i<4;i++) {
+		managementThreads[i].combinedVelocities=colorGroups[i].vel;
+	}
 }
 
 
@@ -453,6 +471,16 @@ void ofApp::setup()
 
 	ofSetBackgroundAuto(false);
 
+	//setup the threads
+	for (int i=0;i<4;i++) {
+		managementThreads[i].combinedVelocities=colorGroups[i].vel;
+		managementThreads[i].colorIndex=i;
+		managementThreads[i].startSync.lock();
+		managementThreads[i].endSync.lock();
+		managementThreads[i].app = this;
+		managementThreads[i].shutdown = false;
+		managementThreads[i].thread = std::thread(managementThread, &managementThreads[i]);//start the thread
+	}
 
 	random();
 	restart();
@@ -485,6 +513,31 @@ void ofApp::update()
 		}
 	}
 
+	//tell each thread to go
+	for (auto &mt: managementThreads) {
+		mt.startSync.unlock();
+	}
+
+	//wait for each thread to finish
+	for (auto &mt: managementThreads) {
+		mt.endSync.lock();
+	}
+
+	//do the final synchronous reduction
+	for (int i=0;i<4;i++) {//for each color group
+		for (size_t j=0;j<colorGroups[i].vel.size();j++) {//for each element in each group
+			//update posision based on velocity
+			colorGroups[i].pos[j] += colorGroups[i].vel[j];
+		}
+		//enforce the screen bounds if on
+		if (boundsToggle) {
+			for (auto& p : colorGroups[i].pos)
+			{
+				p.x = std::min(std::max(p.x, 0.0F), static_cast<float>(boundWidth));
+				p.y = std::min(std::max(p.y, 0.0F), static_cast<float>(boundHeight));
+			}
+		}
+	}
 		// interaction(red,   red,    colorPowerSliders[RED_INDEX].red,        colorRadiusSliders[RED_INDEX].red, boundsToggle);
 		// interaction(red,   green,  colorPowerSliders[RED_INDEX].green,      colorRadiusSliders[RED_INDEX].green, boundsToggle);
 		// interaction(red,   cyan,   colorPowerSliders[RED_INDEX].cyan,       colorRadiusSliders[RED_INDEX].cyan, boundsToggle);
@@ -564,7 +617,7 @@ void ofApp::keyPressed(int key)
 }
 
 
-//unfortianly this needs to take a pointer
+//unfortunately this needs to take a pointer
 void computeThread(ComputeThreadInfo *info) {
 	while (!info->shutdown) {
 		//wait for the singal from the parent thread
@@ -574,6 +627,7 @@ void computeThread(ComputeThreadInfo *info) {
 		}
 
 		//do the compute
+		info->app->interaction(info->parentColorIndex, info->colorIndex,info->velocities);
 
 		//signal to the parent thread that this thread has finished
 		info->endSync.unlock();
@@ -588,10 +642,13 @@ void managementThread(ManagementThreadInfo * info) {
 		info->computeThreads[i].endSync.lock();
 		info->computeThreads[i].shutdown = false;
 		info->computeThreads[i].velocities.resize(info->combinedVelocities.size());
+		info->computeThreads[i].app = info->app;
 
 		//start the compute thread
 		info->computeThreads[i].thread = std::thread(computeThread,&info->computeThreads[i]);
 	}
+	vector<ofVec2f> localVelocities;
+	localVelocities.resize(info->combinedVelocities.size());
 
 	while (!info->shutdown) {
 		//wait for the signal from the main thread
@@ -607,6 +664,7 @@ void managementThread(ManagementThreadInfo * info) {
 		}
 
 		//do computations your self
+		info->app->interaction(info->colorIndex,0,localVelocities);
 
 		//wait for all the sub threads to finish
 		for (auto & computeThread : info->computeThreads) {
@@ -618,7 +676,9 @@ void managementThread(ManagementThreadInfo * info) {
 			for (auto & computeThread : info->computeThreads) {
 				info->combinedVelocities[i] += computeThread.velocities[i];
 			}
+			info->combinedVelocities[i] += localVelocities[i];
 		}
+
 
 		//signal to the main thread ready
 		info->endSync.unlock();
@@ -635,4 +695,13 @@ void managementThread(ManagementThreadInfo * info) {
 		computeThread.thread.join();
 	}
 	//this thread then stops
+}
+
+//only call this from the main file at end of program!
+void shutdownThreads() {
+	for (int i=0;i<4;i++) {
+		managementThreads[i].shutdown = true;
+		managementThreads[i].startSync.unlock();
+		managementThreads[i].thread.join();
+	}
 }

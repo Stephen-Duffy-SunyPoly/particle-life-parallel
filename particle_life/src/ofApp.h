@@ -97,9 +97,9 @@ public:
 	vector<colorGroup> colorGroups {{},{},{},{}};
 
 	int cntFps = 0;
-	clock_t now, lastTime, delta;
-	clock_t lastTime_draw, delta_draw;
-	clock_t physic_begin, physic_delta;
+	clock_t now{}, lastTime{}, delta{};
+	clock_t lastTime_draw{}, delta_draw{};
+	clock_t physic_begin{}, physic_delta{};
 
 #pragma region guigroup
 	ofxGuiGroup globalGroup;
@@ -201,3 +201,5 @@ public:
 	float radiusVariance = 0.6F;
 	float wallRepel = 10.0F;
 };
+
+void shutdownThreads();
