@@ -9,4 +9,5 @@ int main( ){
 	s.setSize(1600, 900);
 	ofCreateWindow(s);
 	ofRunApp(new ofApp());
+	shutdownThreads();
 }
