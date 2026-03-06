@@ -525,7 +525,7 @@ void ofApp::update()
 	for (int i=0;i<4;i++) {//for each color group
 		for (size_t j=0;j<colorGroups[i].vel.size();j++) {//for each element in each group
 			//update posision based on velocity
-			colorGroups[i].pos[j] += colorGroups[i].vel[j];
+			colorGroups[i].pos[j] += managementThreads[i].combinedVelocities[j];
 		}
 		//enforce the screen bounds if on
 		if (boundsToggle) {
@@ -536,22 +536,6 @@ void ofApp::update()
 			}
 		}
 	}
-		// interaction(red,   red,    colorPowerSliders[RED_INDEX].red,        colorRadiusSliders[RED_INDEX].red, boundsToggle);
-		// interaction(red,   green,  colorPowerSliders[RED_INDEX].green,      colorRadiusSliders[RED_INDEX].green, boundsToggle);
-		// interaction(red,   cyan,   colorPowerSliders[RED_INDEX].cyan,       colorRadiusSliders[RED_INDEX].cyan, boundsToggle);
-		// interaction(red,   orange, colorPowerSliders[RED_INDEX].orange,     colorRadiusSliders[RED_INDEX].orange, boundsToggle);
-		// interaction(green, red,    colorPowerSliders[GREEN_INDEX].red,      colorRadiusSliders[GREEN_INDEX].red, boundsToggle);
-		// interaction(green, green,  colorPowerSliders[GREEN_INDEX].green,    colorRadiusSliders[GREEN_INDEX].green, boundsToggle);
-		// interaction(green, cyan,   colorPowerSliders[GREEN_INDEX].cyan,     colorRadiusSliders[GREEN_INDEX].cyan, boundsToggle);
-		// interaction(green, orange, colorPowerSliders[GREEN_INDEX].orange,   colorRadiusSliders[GREEN_INDEX].orange, boundsToggle);
-		// interaction(cyan,  red,    colorPowerSliders[CYAN_INDEX].red,       colorRadiusSliders[CYAN_INDEX].red, boundsToggle);
-		// interaction(cyan,  green,  colorPowerSliders[CYAN_INDEX].green,     colorRadiusSliders[CYAN_INDEX].green, boundsToggle);
-		// interaction(cyan,  cyan,   colorPowerSliders[CYAN_INDEX].cyan,      colorRadiusSliders[CYAN_INDEX].cyan, boundsToggle);
-		// interaction(cyan,  orange, colorPowerSliders[CYAN_INDEX].orange,    colorRadiusSliders[CYAN_INDEX].orange, boundsToggle);
-		// interaction(orange, red,   colorPowerSliders[ORANGE_INDEX].red,     colorRadiusSliders[ORANGE_INDEX].red, boundsToggle);
-		// interaction(orange, green, colorPowerSliders[ORANGE_INDEX].green,   colorRadiusSliders[ORANGE_INDEX].green, boundsToggle);
-		// interaction(orange, cyan,  colorPowerSliders[ORANGE_INDEX].cyan,    colorRadiusSliders[ORANGE_INDEX].cyan, boundsToggle);
-		// interaction(orange, orange, colorPowerSliders[ORANGE_INDEX].orange, colorRadiusSliders[ORANGE_INDEX].orange, boundsToggle);
 		
 	
 	if (save) { saveSettings(); }
@@ -626,7 +610,6 @@ void computeThread(ComputeThreadInfo *info) {
 
 		//do the compute
 		info->app->interaction(info->parentColorIndex, info->colorIndex,info->velocities);
-
 		//signal to the parent thread that this thread has finished
 		info->endSync.release();
 	}
