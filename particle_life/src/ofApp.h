@@ -73,11 +73,13 @@ public:
 	void update() override;
 	void draw() override;
 	void keyPressed(int key) override;
+
+	void interaction(int colorGroup1Index, int colorGroup2Index, vector<ofVec2f> &velocityOut) noexcept;
+
 	void restart();
 	void random();
 	void saveSettings();
 	void loadSettings();
-	void interaction(colorGroup& Group1, const colorGroup& Group2, const float G, const float radius, bool boundsToggle) const noexcept;
 
 	static float RandomFloat(const float a, const float b) { return a + (ofRandomuf() * (b - a)); }
 
@@ -92,10 +94,7 @@ public:
 	ofxPanel gui;
 	ofVbo vbo;
 
-	colorGroup green;
-	colorGroup red;
-	colorGroup orange;
-	colorGroup cyan;
+	vector<colorGroup> colorGroups {{},{},{},{}};
 
 	int cntFps = 0;
 	clock_t now, lastTime, delta;

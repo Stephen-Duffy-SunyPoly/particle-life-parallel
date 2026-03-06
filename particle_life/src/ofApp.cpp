@@ -5,6 +5,29 @@
 #include <vector>
 #include <random>
 #include <fstream>
+#include <thread> //c++ standard lib threading API
+#include <mutex> //c++ standard lib mutex API
+
+
+struct ComputeThreadInfo {
+	std::thread thread;
+	std::mutex startSync;
+	std::mutex endSync;
+	int colorIndex =0;
+	int parentColorIndex=0;
+	vector<ofVec2f> velocities;
+	bool shutdown = false;
+};
+
+struct ManagementThreadInfo {
+	ComputeThreadInfo computeThreads[3];
+	std::thread thread;
+	std::mutex startSync;
+	std::mutex endSync;
+	int colorIndex;
+	vector<ofVec2f> &combinedVelocities;//direct ref to the velocity's in the color group
+	bool shutdown;
+};
 
 
 //Simulation parameters
@@ -29,17 +52,23 @@ colorGroup CreatePoints(const int num, ofColor color) noexcept
 }
 
 // compute and apply the interaction between two groups of particles
-void ofApp::interaction(colorGroup& Group1, const colorGroup& Group2, 
-		const float G, const float radius, bool boundsToggle) const noexcept
+void ofApp::interaction(int colorGroup1Index,int colorGroup2Index, vector<ofVec2f> &velocityOut) noexcept
 {
+
+	float G = colorPowerSliders[colorGroup1Index][colorGroup2Index];
+	float radius = colorRadiusSliders[colorGroup1Index][colorGroup2Index];
+
+	colorGroup &Group1 = colorGroups[colorGroup1Index];
+	colorGroup &Group2 = colorGroups[colorGroup2Index];
 	
 	assert(Group1.pos.size() % 64 == 0);
 	assert(Group2.pos.size() % 64 == 0);
 	
 	const float g = G / -100;	// attraction coefficient
 
-	for (size_t i = 0; i < Group1.pos.size(); i++) // for each object in this group
-	{
+	// for each object in this group
+	for (size_t i = 0; i < Group1.pos.size(); i++) {
+		velocityOut[i] = {0,0};
 		float fx = 0.0F;	// force on x
 		float fy = 0.0F;	// force on y
 		
@@ -67,33 +96,34 @@ void ofApp::interaction(colorGroup& Group1, const colorGroup& Group2,
 		// Wall Repel
 		if (wallRepel > 0.0F)
 		{
-			Group1.vel[i].x += Group1.pos[i].x < wallRepel ? (wallRepel - Group1.pos[i].x) * 0.1 : 0.0F;	// x
-			Group1.vel[i].y += Group1.pos[i].y < wallRepel ? (wallRepel - Group1.pos[i].y) * 0.1 : 0.0F;	// x
-			Group1.vel[i].x += Group1.pos[i].x > boundWidth - wallRepel  ? (boundWidth - wallRepel - Group1.pos[i].x) * 0.1  : 0.0F; // y 
-			Group1.vel[i].y += Group1.pos[i].y > boundHeight - wallRepel ? (boundHeight - wallRepel - Group1.pos[i].y) * 0.1 : 0.0F; // y			
+			velocityOut[i].x += Group1.pos[i].x < wallRepel ? (wallRepel - Group1.pos[i].x) * 0.1 : 0.0F;	// x
+			velocityOut[i].y += Group1.pos[i].y < wallRepel ? (wallRepel - Group1.pos[i].y) * 0.1 : 0.0F;	// x
+			velocityOut[i].x += Group1.pos[i].x > boundWidth - wallRepel  ? (boundWidth - wallRepel - Group1.pos[i].x) * 0.1  : 0.0F; // y
+			velocityOut[i].y += Group1.pos[i].y > boundHeight - wallRepel ? (boundHeight - wallRepel - Group1.pos[i].y) * 0.1 : 0.0F; // y
 		}
 
 		//do this on main thread after the parallel section finishes
 		// Viscosity & gravity
 		//perhaps store this computation of viscosity instead of what is currently stored
 		//sture the computed velocities locally and reduce them together after each thread for a specific color finishes its job
-		Group1.vel[i].x = (Group1.vel[i].x + (fx * g)) * (1.0 - viscosity);
-		Group1.vel[i].y = (Group1.vel[i].y + (fy * g)) * (1.0 - viscosity) + worldGravity;
+		velocityOut[i].x = (velocityOut[i].x + (fx * g)) * (1.0 - viscosity);
+		velocityOut[i].y = (velocityOut[i].y + (fy * g)) * (1.0 - viscosity) + worldGravity;
 
 		//Update position do this outsize of the loop, after each thread does its thing, loop through every point and update this value
 		//TODO use the opperator overload for this
-		Group1.pos[i].x += Group1.vel[i].x;
-		Group1.pos[i].y += Group1.vel[i].y;
+		// Group1.pos[i].x += Group1.vel[i].x;
+		// Group1.pos[i].y += Group1.vel[i].y;
 	}
 
 	// if "bounded" is checked then keep particles inside the window
-	if (boundsToggle) {
-		for (auto& p : Group1.pos)
-		{
-			p.x = std::min(std::max(p.x, 0.0F), static_cast<float>(boundWidth));
-			p.y = std::min(std::max(p.y, 0.0F), static_cast<float>(boundHeight));
-		}
-	}
+	//TODO this outside of the threads
+	// if (boundsToggle) {
+	// 	for (auto& p : Group1.pos)
+	// 	{
+	// 		p.x = std::min(std::max(p.x, 0.0F), static_cast<float>(boundWidth));
+	// 		p.y = std::min(std::max(p.y, 0.0F), static_cast<float>(boundHeight));
+	// 	}
+	// }
 	
 }
 	
@@ -115,15 +145,15 @@ void ofApp::restart()
 	assert(numberSliderY % 64 == 0);
 	
 	// Create the groups of particles
-	if (numberSliderG > 0) { green  = CreatePoints(numberSliderG, ofColor::green); }
-	if (numberSliderR > 0) { red    = CreatePoints(numberSliderR,   ofColor::red);   }
-	if (numberSliderO > 0) { orange  = CreatePoints(numberSliderO, ofColor::orange); }
-	if (numberSliderC > 0) { cyan = CreatePoints(numberSliderC,  ofColor::cyan); }
+	if (numberSliderG > 0) { colorGroups[GREEN_INDEX]  = CreatePoints(numberSliderG, ofColor::green); }
+	if (numberSliderR > 0) { colorGroups[RED_INDEX]    = CreatePoints(numberSliderR,   ofColor::red);   }
+	if (numberSliderO > 0) { colorGroups[ORANGE_INDEX] = CreatePoints(numberSliderO, ofColor::orange); }
+	if (numberSliderC > 0) { colorGroups[CYAN_INDEX]   = CreatePoints(numberSliderC,  ofColor::cyan); }
 
-	vbo.setVertexData(green.pos.data(),  green.pos.size(),  GL_STREAM_DRAW);
-	vbo.setVertexData(red.pos.data(),    red.pos.size(),    GL_STREAM_DRAW);
-	vbo.setVertexData(orange.pos.data(),  orange.pos.size(),  GL_STREAM_DRAW);
-	vbo.setVertexData(cyan.pos.data(), cyan.pos.size(), GL_STREAM_DRAW);
+	vbo.setVertexData(colorGroups[GREEN_INDEX].pos.data(),  colorGroups[GREEN_INDEX].pos.size(),  GL_STREAM_DRAW);
+	vbo.setVertexData(colorGroups[RED_INDEX].pos.data(),    colorGroups[RED_INDEX].pos.size(),    GL_STREAM_DRAW);
+	vbo.setVertexData(colorGroups[ORANGE_INDEX].pos.data(),  colorGroups[ORANGE_INDEX].pos.size(),  GL_STREAM_DRAW);
+	vbo.setVertexData(colorGroups[CYAN_INDEX].pos.data(), colorGroups[CYAN_INDEX].pos.size(), GL_STREAM_DRAW);
 }
 
 
@@ -455,22 +485,22 @@ void ofApp::update()
 		}
 	}
 
-		interaction(red,   red,    colorPowerSliders[RED_INDEX].red,        colorRadiusSliders[RED_INDEX].red, boundsToggle);
-		interaction(red,   green,  colorPowerSliders[RED_INDEX].green,      colorRadiusSliders[RED_INDEX].green, boundsToggle);
-		interaction(red,   cyan,   colorPowerSliders[RED_INDEX].cyan,       colorRadiusSliders[RED_INDEX].cyan, boundsToggle);
-		interaction(red,   orange, colorPowerSliders[RED_INDEX].orange,     colorRadiusSliders[RED_INDEX].orange, boundsToggle);
-		interaction(green, red,    colorPowerSliders[GREEN_INDEX].red,      colorRadiusSliders[GREEN_INDEX].red, boundsToggle);
-		interaction(green, green,  colorPowerSliders[GREEN_INDEX].green,    colorRadiusSliders[GREEN_INDEX].green, boundsToggle);
-		interaction(green, cyan,   colorPowerSliders[GREEN_INDEX].cyan,     colorRadiusSliders[GREEN_INDEX].cyan, boundsToggle);
-		interaction(green, orange, colorPowerSliders[GREEN_INDEX].orange,   colorRadiusSliders[GREEN_INDEX].orange, boundsToggle);
-		interaction(cyan,  red,    colorPowerSliders[CYAN_INDEX].red,       colorRadiusSliders[CYAN_INDEX].red, boundsToggle);
-		interaction(cyan,  green,  colorPowerSliders[CYAN_INDEX].green,     colorRadiusSliders[CYAN_INDEX].green, boundsToggle);
-		interaction(cyan,  cyan,   colorPowerSliders[CYAN_INDEX].cyan,      colorRadiusSliders[CYAN_INDEX].cyan, boundsToggle);
-		interaction(cyan,  orange, colorPowerSliders[CYAN_INDEX].orange,    colorRadiusSliders[CYAN_INDEX].orange, boundsToggle);
-		interaction(orange, red,   colorPowerSliders[ORANGE_INDEX].red,     colorRadiusSliders[ORANGE_INDEX].red, boundsToggle);
-		interaction(orange, green, colorPowerSliders[ORANGE_INDEX].green,   colorRadiusSliders[ORANGE_INDEX].green, boundsToggle);
-		interaction(orange, cyan,  colorPowerSliders[ORANGE_INDEX].cyan,    colorRadiusSliders[ORANGE_INDEX].cyan, boundsToggle);
-		interaction(orange, orange, colorPowerSliders[ORANGE_INDEX].orange, colorRadiusSliders[ORANGE_INDEX].orange, boundsToggle);
+		// interaction(red,   red,    colorPowerSliders[RED_INDEX].red,        colorRadiusSliders[RED_INDEX].red, boundsToggle);
+		// interaction(red,   green,  colorPowerSliders[RED_INDEX].green,      colorRadiusSliders[RED_INDEX].green, boundsToggle);
+		// interaction(red,   cyan,   colorPowerSliders[RED_INDEX].cyan,       colorRadiusSliders[RED_INDEX].cyan, boundsToggle);
+		// interaction(red,   orange, colorPowerSliders[RED_INDEX].orange,     colorRadiusSliders[RED_INDEX].orange, boundsToggle);
+		// interaction(green, red,    colorPowerSliders[GREEN_INDEX].red,      colorRadiusSliders[GREEN_INDEX].red, boundsToggle);
+		// interaction(green, green,  colorPowerSliders[GREEN_INDEX].green,    colorRadiusSliders[GREEN_INDEX].green, boundsToggle);
+		// interaction(green, cyan,   colorPowerSliders[GREEN_INDEX].cyan,     colorRadiusSliders[GREEN_INDEX].cyan, boundsToggle);
+		// interaction(green, orange, colorPowerSliders[GREEN_INDEX].orange,   colorRadiusSliders[GREEN_INDEX].orange, boundsToggle);
+		// interaction(cyan,  red,    colorPowerSliders[CYAN_INDEX].red,       colorRadiusSliders[CYAN_INDEX].red, boundsToggle);
+		// interaction(cyan,  green,  colorPowerSliders[CYAN_INDEX].green,     colorRadiusSliders[CYAN_INDEX].green, boundsToggle);
+		// interaction(cyan,  cyan,   colorPowerSliders[CYAN_INDEX].cyan,      colorRadiusSliders[CYAN_INDEX].cyan, boundsToggle);
+		// interaction(cyan,  orange, colorPowerSliders[CYAN_INDEX].orange,    colorRadiusSliders[CYAN_INDEX].orange, boundsToggle);
+		// interaction(orange, red,   colorPowerSliders[ORANGE_INDEX].red,     colorRadiusSliders[ORANGE_INDEX].red, boundsToggle);
+		// interaction(orange, green, colorPowerSliders[ORANGE_INDEX].green,   colorRadiusSliders[ORANGE_INDEX].green, boundsToggle);
+		// interaction(orange, cyan,  colorPowerSliders[ORANGE_INDEX].cyan,    colorRadiusSliders[ORANGE_INDEX].cyan, boundsToggle);
+		// interaction(orange, orange, colorPowerSliders[ORANGE_INDEX].orange, colorRadiusSliders[ORANGE_INDEX].orange, boundsToggle);
 		
 	
 	if (save) { saveSettings(); }
@@ -515,10 +545,10 @@ void ofApp::draw()
 			restart();
 		}
 			
-			if (numberSliderO > 0) { Draw(orange); }
-			if (numberSliderR > 0) { Draw(red); }
-			if (numberSliderG > 0) { Draw(green); }
-			if (numberSliderC > 0) { Draw(cyan); }
+			if (numberSliderO > 0) { Draw(colorGroups[ORANGE_INDEX]); }
+			if (numberSliderR > 0) { Draw(colorGroups[RED_INDEX]); }
+			if (numberSliderG > 0) { Draw(colorGroups[GREEN_INDEX]); }
+			if (numberSliderC > 0) { Draw(colorGroups[CYAN_INDEX]); }
 			lastTime_draw = now;
 
 			gui.draw();
@@ -531,4 +561,78 @@ void ofApp::keyPressed(int key)
 		random();
 		restart();
 	}
+}
+
+
+//unfortianly this needs to take a pointer
+void computeThread(ComputeThreadInfo *info) {
+	while (!info->shutdown) {
+		//wait for the singal from the parent thread
+		info->startSync.lock();
+		if (info->shutdown) {
+			return;
+		}
+
+		//do the compute
+
+		//signal to the parent thread that this thread has finished
+		info->endSync.unlock();
+	}
+}
+
+void managementThread(ManagementThreadInfo * info) {
+	for (int i=0;i<3;i++) {
+		info->computeThreads[i].colorIndex=i+1;
+		info->computeThreads[i].parentColorIndex = info->colorIndex;
+		info->computeThreads[i].startSync.lock();
+		info->computeThreads[i].endSync.lock();
+		info->computeThreads[i].shutdown = false;
+		info->computeThreads[i].velocities.resize(info->combinedVelocities.size());
+
+		//start the compute thread
+		info->computeThreads[i].thread = std::thread(computeThread,&info->computeThreads[i]);
+	}
+
+	while (!info->shutdown) {
+		//wait for the signal from the main thread
+		info->startSync.lock();
+
+		if (info->shutdown) {
+			break;
+		}
+
+		//signal all the sub threads
+		for (auto & computeThread : info->computeThreads) {
+			computeThread.startSync.unlock();
+		}
+
+		//do computations your self
+
+		//wait for all the sub threads to finish
+		for (auto & computeThread : info->computeThreads) {
+			computeThread.endSync.lock();
+		}
+
+		//reduce the results of each thread
+		for (size_t i=0;i<info->combinedVelocities.size();i++) {
+			for (auto & computeThread : info->computeThreads) {
+				info->combinedVelocities[i] += computeThread.velocities[i];
+			}
+		}
+
+		//signal to the main thread ready
+		info->endSync.unlock();
+	}
+
+	//tell all the child threads to shut down
+	for (auto & computeThread : info->computeThreads) {
+		computeThread.shutdown = true;//tell the thread to stop
+		computeThread.startSync.unlock();//let it run
+	}
+
+	//wait for each thread to stop properly
+	for (auto & computeThread : info->computeThreads) {
+		computeThread.thread.join();
+	}
+	//this thread then stops
 }
