@@ -26,21 +26,20 @@ struct ManagementThreadInfo {
 	std::binary_semaphore startSync;
 	std::binary_semaphore endSync;
 	int colorIndex=0;
-	vector<ofVec2f> &combinedVelocities;//direct ref to the velocity's in the color group
+	vector<ofVec2f> * combinedVelocities;//direct ref to the velocity's in the color group
 	bool shutdown=false;
 	ofApp *app = nullptr;
 };
 
 void managementThread(ManagementThreadInfo * info);
 
-vector<ofVec2f> tmpInit;
 
 //default initializations
 ManagementThreadInfo managementThreads[4] = {
-	{{},{},std::binary_semaphore(0),std::binary_semaphore(0),0,tmpInit,false,nullptr},
-	{{},{},std::binary_semaphore(0),std::binary_semaphore(0),0,tmpInit,false,nullptr},
-	{{},{},std::binary_semaphore(0),std::binary_semaphore(0),0,tmpInit,false,nullptr},
-	{{},{},std::binary_semaphore(0),std::binary_semaphore(0),0,tmpInit,false,nullptr}
+	{{},{},std::binary_semaphore(0),std::binary_semaphore(0),0,nullptr,false,nullptr},
+	{{},{},std::binary_semaphore(0),std::binary_semaphore(0),0,nullptr,false,nullptr},
+	{{},{},std::binary_semaphore(0),std::binary_semaphore(0),0,nullptr,false,nullptr},
+	{{},{},std::binary_semaphore(0),std::binary_semaphore(0),0,nullptr,false,nullptr}
 };
 
 //Simulation parameters
@@ -170,7 +169,7 @@ void ofApp::restart()
 
 	//update the velocity references for the management thread
 	for (int i=0;i<4;i++) {
-		managementThreads[i].combinedVelocities=colorGroups[i].vel;
+		managementThreads[i].combinedVelocities=&colorGroups[i].vel;
 	}
 }
 
@@ -473,7 +472,8 @@ void ofApp::setup()
 
 	//setup the threads
 	for (int i=0;i<4;i++) {
-		managementThreads[i].combinedVelocities=colorGroups[i].vel;
+		managementThreads[i].combinedVelocities=&colorGroups[i].vel;
+		std::cerr << "Combined addr: " << managementThreads[i].combinedVelocities << " " << &(colorGroups[i].vel)<< std::endl;
 		managementThreads[i].colorIndex=i;
 		managementThreads[i].app = this;
 		managementThreads[i].shutdown = false;
@@ -525,7 +525,7 @@ void ofApp::update()
 	for (int i=0;i<4;i++) {//for each color group
 		for (size_t j=0;j<colorGroups[i].vel.size();j++) {//for each element in each group
 			//update posision based on velocity
-			colorGroups[i].pos[j] += managementThreads[i].combinedVelocities[j];
+			colorGroups[i].pos[j] += managementThreads[i].combinedVelocities->at(j);
 		}
 		//enforce the screen bounds if on
 		if (boundsToggle) {
@@ -620,14 +620,14 @@ void managementThread(ManagementThreadInfo * info) {
 		info->computeThreads[i].colorIndex=i+1;
 		info->computeThreads[i].parentColorIndex = info->colorIndex;
 		info->computeThreads[i].shutdown = false;
-		info->computeThreads[i].velocities.resize(info->combinedVelocities.size());
+		info->computeThreads[i].velocities.resize(info->combinedVelocities->size());
 		info->computeThreads[i].app = info->app;
 
 		//start the compute thread
 		info->computeThreads[i].thread = std::thread(computeThread,&info->computeThreads[i]);
 	}
 	vector<ofVec2f> localVelocities;
-	localVelocities.resize(info->combinedVelocities.size());
+	localVelocities.resize(info->combinedVelocities->size());
 
 	while (!info->shutdown) {
 		//wait for the signal from the main thread
@@ -637,9 +637,9 @@ void managementThread(ManagementThreadInfo * info) {
 			break;
 		}
 		//check to see if the number of particles changed
-		if (localVelocities.size() != info->combinedVelocities.size()) {
+		if (localVelocities.size() != info->combinedVelocities->size()) {
 			//if the size changed, resize all the other vectors that need resizing
-			localVelocities.resize(info->combinedVelocities.size());
+			localVelocities.resize(info->combinedVelocities->size());
 			for (int i=0;i<3;i++) {
 				info->computeThreads[i].velocities.resize(localVelocities.size());
 			}
@@ -659,11 +659,11 @@ void managementThread(ManagementThreadInfo * info) {
 		}
 
 		//reduce the results of each thread
-		for (size_t i=0;i<info->combinedVelocities.size();i++) {
+		for (size_t i=0;i<info->combinedVelocities->size();i++) {
 			for (auto & computeThread : info->computeThreads) {
-				info->combinedVelocities[i] += computeThread.velocities[i];
+				info->combinedVelocities->at(i) += computeThread.velocities[i];
 			}
-			info->combinedVelocities[i] += localVelocities[i];
+			info->combinedVelocities->at(i) += localVelocities[i];
 		}
 
 
