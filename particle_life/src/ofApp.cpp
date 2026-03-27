@@ -67,12 +67,12 @@ colorGroup CreatePoints(const int num, ofColor color) noexcept
 void ofApp::interaction(int colorGroup1Index,int colorGroup2Index, vector<ofVec2f> &velocityOut) noexcept
 {
 
-	float G = colorPowerSliders[colorGroup1Index][colorGroup2Index];
-	float radius = colorRadiusSliders[colorGroup1Index][colorGroup2Index];
-	float radiusSquared = radius * radius;
+	const float G = colorPowerSliders[colorGroup1Index][colorGroup2Index];
+	const float radius = colorRadiusSliders[colorGroup1Index][colorGroup2Index];
+	const float radiusSquared = radius * radius;
 
-	colorGroup &Group1 = colorGroups[colorGroup1Index];
-	colorGroup &Group2 = colorGroups[colorGroup2Index];
+	const colorGroup &Group1 = colorGroups[colorGroup1Index];
+	const colorGroup &Group2 = colorGroups[colorGroup2Index];
 	
 	assert(Group1.pos.size() % 64 == 0);
 	assert(Group2.pos.size() % 64 == 0);
@@ -123,16 +123,6 @@ void ofApp::interaction(int colorGroup1Index,int colorGroup2Index, vector<ofVec2
 		velocityOut[i].y = (velocityOut[i].y + (fy * g)) * (1.0 - viscosity) + worldGravity;
 
 	}
-
-	// if "bounded" is checked then keep particles inside the window
-	//TODO this outside of the threads
-	// if (boundsToggle) {
-	// 	for (auto& p : Group1.pos)
-	// 	{
-	// 		p.x = std::min(std::max(p.x, 0.0F), static_cast<float>(boundWidth));
-	// 		p.y = std::min(std::max(p.y, 0.0F), static_cast<float>(boundHeight));
-	// 	}
-	// }
 	
 }
 	
