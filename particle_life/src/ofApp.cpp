@@ -3,10 +3,43 @@
 
 #include <iostream>
 #include <vector>
-#include <random>
 #include <fstream>
-//#include "oneapi/tbb.h"
+#include <thread> //c++ standard lib threading API
+#include <semaphore> //c++ standard lib semafore API
 
+
+struct ComputeThreadInfo {
+	std::thread thread;
+	std::binary_semaphore startSync = std::binary_semaphore(0);
+	std::binary_semaphore endSync = std::binary_semaphore(0);
+	int colorIndex =0;
+	int parentColorIndex=0;
+	vector<ofVec2f> velocities;
+	bool shutdown = false;
+	ofApp *app;
+};
+
+struct ManagementThreadInfo {
+	ComputeThreadInfo computeThreads[3];
+	std::thread thread;
+	std::binary_semaphore startSync;
+	std::binary_semaphore endSync;
+	int colorIndex=0;
+	vector<ofVec2f> * combinedVelocities;//direct ref to the velocity's in the color group
+	bool shutdown=false;
+	ofApp *app = nullptr;
+};
+
+void managementThread(ManagementThreadInfo * info);
+
+
+//default initializations
+ManagementThreadInfo managementThreads[4] = {
+	{{},{},std::binary_semaphore(0),std::binary_semaphore(0),0,nullptr,false,nullptr},
+	{{},{},std::binary_semaphore(0),std::binary_semaphore(0),0,nullptr,false,nullptr},
+	{{},{},std::binary_semaphore(0),std::binary_semaphore(0),0,nullptr,false,nullptr},
+	{{},{},std::binary_semaphore(0),std::binary_semaphore(0),0,nullptr,false,nullptr}
+};
 
 //Simulation parameters
 
@@ -30,68 +63,68 @@ colorGroup CreatePoints(const int num, ofColor color) noexcept
 }
 
 // compute and apply the interaction between two groups of particles
-void ofApp::interaction(colorGroup& Group1, const colorGroup& Group2, 
-		const float G, const float radius, bool boundsToggle) const noexcept
+//This Method is executed in parallel
+void ofApp::interaction(int colorGroup1Index,int colorGroup2Index, vector<ofVec2f> &velocityOut) noexcept
 {
-	
+
+	const float G = colorPowerSliders[colorGroup1Index][colorGroup2Index];
+	const float radius = colorRadiusSliders[colorGroup1Index][colorGroup2Index];
+	const float radiusSquared = radius * radius;
+
+	const colorGroup &Group1 = colorGroups[colorGroup1Index];
+	const colorGroup &Group2 = colorGroups[colorGroup2Index];
+
 	assert(Group1.pos.size() % 64 == 0);
 	assert(Group2.pos.size() % 64 == 0);
 	
 	const float g = G / -100;	// attraction coefficient
 
-	//#pragma omp parallel
-	for (size_t i = 0; i < Group1.pos.size(); i++)
-	{
+	// for each object in this group
+	for (size_t i = 0; i < Group1.pos.size(); i++) {
+		velocityOut[i] = {0,0};
 		float fx = 0.0F;	// force on x
 		float fy = 0.0F;	// force on y
-		
-		
-		for (size_t j = 0; j < Group2.pos.size(); j++)
-		{
-			if (Group1.pos[i] != Group2.pos[j])
-			{
-				const float distance_squared = ((Group1.pos[i].x - Group2.pos[j].x) * (Group1.pos[i].x - Group2.pos[j].x))
-					+ ((Group1.pos[i].y - Group2.pos[j].y) * (Group1.pos[i].y - Group2.pos[j].y));
 
-				// if distance < radius, apply the force, otherwise, force = 0
-	//			const float force = distance_squared < radius*radius ? 1 / (std::max(std::numeric_limits<float>::epsilon(), std::sqrtf(distance_squared))) : 0.0F;
-	//			fx += ((Group1.pos[i].x - Group2.pos[j].x) * force);
-	//			fy += ((Group1.pos[i].y - Group2.pos[j].y) * force);
-			#ifdef _WIN32
-				const float force = distance_squared < radius* radius ? 1.0F / std::sqrtf(distance_squared) : 0.0F;
-			#else
-				const float force = distance_squared < radius* radius ? 1.0F / std::sqrt(distance_squared) : 0.0F;
-			#endif
-				fx += ((Group1.pos[i].x - Group2.pos[j].x) * force);
-				fy += ((Group1.pos[i].y - Group2.pos[j].y) * force);
+		ofVec2f myPos = Group1.pos[i];
+		
+		for (size_t j = 0; j < Group2.pos.size(); j++) //for each object in the other group
+		{
+			ofVec2f otherPos = Group2.pos[j];
+			//check that the other partilce is not my self
+			if (myPos != otherPos)
+			{
+				//compute the diffrences in the x and y axisis since they are used 3 times
+				const float xdif = myPos.x - otherPos.x;
+				const float ydif = myPos.y - otherPos.y;
+				//direct multiplication is more efficient then pow
+				const float distance_squared = xdif * xdif + ydif * ydif;//x^2 + y^2
+				//as long as the distance is less then the radius, the force applied by this patcile is 1 / the sqrt of the distance
+				#ifdef _WIN32
+				const float force = distance_squared < radiusSquared ? 1.0F / std::sqrtf(distance_squared) : 0.0F;
+				#else
+				const float force = distance_squared < radiusSquared ? 1.0F / std::sqrt(distance_squared) : 0.0F;
+				#endif
+				//add the force from this parcile to the running total
+				fx += xdif * force;
+				fy += ydif * force;
 			}
 		}
 
 		// Wall Repel
 		if (wallRepel > 0.0F)
 		{
-			Group1.vel[i].x += Group1.pos[i].x < wallRepel ? (wallRepel - Group1.pos[i].x) * 0.1 : 0.0F;	// x
-			Group1.vel[i].y += Group1.pos[i].y < wallRepel ? (wallRepel - Group1.pos[i].y) * 0.1 : 0.0F;	// x
-			Group1.vel[i].x += Group1.pos[i].x > boundWidth - wallRepel  ? (boundWidth - wallRepel - Group1.pos[i].x) * 0.1  : 0.0F; // y 
-			Group1.vel[i].y += Group1.pos[i].y > boundHeight - wallRepel ? (boundHeight - wallRepel - Group1.pos[i].y) * 0.1 : 0.0F; // y			
+			int boundW = boundWidth - wallRepel;
+			int boundH =boundHeight - wallRepel;
+			velocityOut[i].x += myPos.x < wallRepel ? (wallRepel - myPos.x) * 0.1 : 0.0F;	// x
+			velocityOut[i].y += myPos.y < wallRepel ? (wallRepel - myPos.y) * 0.1 : 0.0F;	// x
+			velocityOut[i].x += myPos.x >  boundW ? (boundW - myPos.x) * 0.1 : 0.0F; // y
+			velocityOut[i].y += myPos.y >  boundH ? (boundH - myPos.y) * 0.1 : 0.0F; // y
 		}
 
-		// Viscosity & gravity
-		Group1.vel[i].x = (Group1.vel[i].x + (fx * g)) * (1.0 - viscosity);
-		Group1.vel[i].y = (Group1.vel[i].y + (fy * g)) * (1.0 - viscosity) + worldGravity;
+		//compute the velocty from the added forces
+		velocityOut[i].x = (velocityOut[i].x + (fx * g)) * (1.0 - viscosity);
+		velocityOut[i].y = (velocityOut[i].y + (fy * g)) * (1.0 - viscosity) + worldGravity;
 
-		//Update position
-		Group1.pos[i].x += Group1.vel[i].x;
-		Group1.pos[i].y += Group1.vel[i].y;
-	}
-
-	// if "bounded" is checked then keep particles inside the window
-	if (boundsToggle) {
-		for (auto& p : Group1.pos)
-		{
-			p.x = std::min(std::max(p.x, 0.0F), static_cast<float>(boundWidth));
-			p.y = std::min(std::max(p.y, 0.0F), static_cast<float>(boundHeight));
-		}
 	}
 	
 }
@@ -105,24 +138,29 @@ void ofApp::restart()
 	// Ensure that the number of particles is a multiple of 64 in order to use the vectorized version of the interaction function
 	numberSliderG = numberSliderG - (numberSliderG % 64);
 	numberSliderR = numberSliderR - (numberSliderR % 64);
-	numberSliderW = numberSliderW - (numberSliderW % 64);
-	numberSliderY = numberSliderY - (numberSliderY % 64);
+	numberSliderO = numberSliderO - (numberSliderO % 64);
+	numberSliderC = numberSliderC - (numberSliderC % 64);
 	
 	assert(numberSliderG % 64 == 0);
 	assert(numberSliderR % 64 == 0);
-	assert(numberSliderW % 64 == 0);
-	assert(numberSliderY % 64 == 0);
+	assert(numberSliderO % 64 == 0);
+	assert(numberSliderC % 64 == 0);
 	
 	// Create the groups of particles
-	if (numberSliderG > 0) { green  = CreatePoints(numberSliderG, ofColor::green); }
-	if (numberSliderR > 0) { red    = CreatePoints(numberSliderR,   ofColor::red);   }
-	if (numberSliderW > 0) { white  = CreatePoints(numberSliderW, ofColor::white); }
-	if (numberSliderY > 0) { yellow = CreatePoints(numberSliderY,  ofColor::yellow); }
+	if (numberSliderG > 0) { colorGroups[GREEN_INDEX]  = CreatePoints(numberSliderG, ofColor::green); }
+	if (numberSliderR > 0) { colorGroups[RED_INDEX]    = CreatePoints(numberSliderR,   ofColor::red);   }
+	if (numberSliderO > 0) { colorGroups[ORANGE_INDEX] = CreatePoints(numberSliderO, ofColor::orange); }
+	if (numberSliderC > 0) { colorGroups[CYAN_INDEX]   = CreatePoints(numberSliderC,  ofColor::cyan); }
 
-	vbo.setVertexData(green.pos.data(),  green.pos.size(),  GL_STREAM_DRAW);
-	vbo.setVertexData(red.pos.data(),    red.pos.size(),    GL_STREAM_DRAW);
-	vbo.setVertexData(white.pos.data(),  white.pos.size(),  GL_STREAM_DRAW);
-	vbo.setVertexData(yellow.pos.data(), yellow.pos.size(), GL_STREAM_DRAW);
+	vbo.setVertexData(colorGroups[GREEN_INDEX].pos.data(),  colorGroups[GREEN_INDEX].pos.size(),  GL_STREAM_DRAW);
+	vbo.setVertexData(colorGroups[RED_INDEX].pos.data(),    colorGroups[RED_INDEX].pos.size(),    GL_STREAM_DRAW);
+	vbo.setVertexData(colorGroups[ORANGE_INDEX].pos.data(),  colorGroups[ORANGE_INDEX].pos.size(),  GL_STREAM_DRAW);
+	vbo.setVertexData(colorGroups[CYAN_INDEX].pos.data(), colorGroups[CYAN_INDEX].pos.size(), GL_STREAM_DRAW);
+
+	//update the velocity references for the management thread
+	for (int i=0;i<4;i++) {
+		managementThreads[i].combinedVelocities=&colorGroups[i].vel;
+	}
 }
 
 
@@ -133,51 +171,51 @@ void ofApp::random()
 {
 	// GREEN
 	//numberSliderG = RandomFloat(0, 3000);
-	powerSliderGG = RandomFloat(-100, 100) * forceVariance;
-	powerSliderGR = RandomFloat(-100, 100) * forceVariance;
-	powerSliderGW = RandomFloat(-100, 100) * forceVariance;
-	powerSliderGY = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[GREEN_INDEX].green  = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[GREEN_INDEX].red    = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[GREEN_INDEX].orange = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[GREEN_INDEX].cyan   = RandomFloat(-100, 100) * forceVariance;
 
-	vSliderGG = RandomFloat(10, 200) * radiusVariance;
-	vSliderGR = RandomFloat(10, 200) * radiusVariance;
-	vSliderGW = RandomFloat(10, 200) * radiusVariance;
-	vSliderGY = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[GREEN_INDEX].green  = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[GREEN_INDEX].red    = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[GREEN_INDEX].orange = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[GREEN_INDEX].cyan   = RandomFloat(10, 200) * radiusVariance;
 
 	// RED
 	//numberSliderR = RandomFloat(0, 3000);
-	powerSliderRR = RandomFloat(-100, 100) * forceVariance;
-	powerSliderRG = RandomFloat(-100, 100) * forceVariance;
-	powerSliderRW = RandomFloat(-100, 100) * forceVariance;
-	powerSliderRY = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[RED_INDEX].green  = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[RED_INDEX].red    = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[RED_INDEX].orange = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[RED_INDEX].cyan   = RandomFloat(-100, 100) * forceVariance;
 
-	vSliderRG = RandomFloat(10, 200) * radiusVariance;
-	vSliderRR = RandomFloat(10, 200) * radiusVariance;
-	vSliderRW = RandomFloat(10, 200) * radiusVariance;
-	vSliderRY = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[RED_INDEX].green  = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[RED_INDEX].red    = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[RED_INDEX].orange = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[RED_INDEX].cyan   = RandomFloat(10, 200) * radiusVariance;
 
-	// WHITE
+	// orange
 	// numberSliderW = RandomFloat(0, 3000);
-	powerSliderWW = RandomFloat(-100, 100) * forceVariance;
-	powerSliderWR = RandomFloat(-100, 100) * forceVariance;
-	powerSliderWG = RandomFloat(-100, 100) * forceVariance;
-	powerSliderWY = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[ORANGE_INDEX].green  = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[ORANGE_INDEX].red    = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[ORANGE_INDEX].orange = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[ORANGE_INDEX].cyan   = RandomFloat(-100, 100) * forceVariance;
 
-	vSliderWG = RandomFloat(10, 200) * radiusVariance;
-	vSliderWR = RandomFloat(10, 200) * radiusVariance;
-	vSliderWW = RandomFloat(10, 200) * radiusVariance;
-	vSliderWY = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[ORANGE_INDEX].green  = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[ORANGE_INDEX].red    = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[ORANGE_INDEX].orange = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[ORANGE_INDEX].cyan   = RandomFloat(10, 200) * radiusVariance;
 
-	// yellow
+	// cyan
 	//numberSliderY = RandomFloat(0, 3000);
-	powerSliderYY = RandomFloat(-100, 100) * forceVariance;
-	powerSliderYW = RandomFloat(-100, 100) * forceVariance;
-	powerSliderYR = RandomFloat(-100, 100) * forceVariance;
-	powerSliderYG = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[CYAN_INDEX].green  = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[CYAN_INDEX].red    = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[CYAN_INDEX].orange = RandomFloat(-100, 100) * forceVariance;
+	colorPowerSliders[CYAN_INDEX].cyan   = RandomFloat(-100, 100) * forceVariance;
 
-	vSliderYG = RandomFloat(10, 200) * radiusVariance;
-	vSliderYR = RandomFloat(10, 200) * radiusVariance;
-	vSliderYW = RandomFloat(10, 200) * radiusVariance;
-	vSliderYY = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[CYAN_INDEX].green  = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[CYAN_INDEX].red    = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[CYAN_INDEX].orange = RandomFloat(10, 200) * radiusVariance;
+	colorRadiusSliders[CYAN_INDEX].cyan   = RandomFloat(10, 200) * radiusVariance;
 }
 
 /// this is a cheap and quick way to save and load parameters (openFramework have betters ways but requires some additional library setups) 
@@ -185,18 +223,18 @@ void ofApp::random()
 void ofApp::saveSettings()
 {
 	const std::vector<float> settings = {
-		powerSliderGG, powerSliderGR, powerSliderGW, powerSliderGY,
-		vSliderGG, vSliderGR, vSliderGW, vSliderGY,
-		powerSliderRG, powerSliderRR, powerSliderRW, powerSliderRY,
-		vSliderRG, vSliderRR, vSliderRW, vSliderRY,
-		powerSliderWG, powerSliderWR, powerSliderWW, powerSliderWY,
-		vSliderWG, vSliderWR, vSliderWW, vSliderWY,
-		powerSliderYG, powerSliderYR, powerSliderYW, powerSliderYY,
-		vSliderYG, vSliderYR, vSliderYW, vSliderYY,
+		colorPowerSliders[GREEN_INDEX].green, colorPowerSliders[GREEN_INDEX].red, colorPowerSliders[GREEN_INDEX].orange, colorPowerSliders[GREEN_INDEX].cyan,
+		colorRadiusSliders[GREEN_INDEX].green, colorRadiusSliders[GREEN_INDEX].red, colorRadiusSliders[GREEN_INDEX].orange, colorRadiusSliders[GREEN_INDEX].cyan,
+		colorPowerSliders[RED_INDEX].green, colorPowerSliders[RED_INDEX].red, colorPowerSliders[RED_INDEX].orange, colorPowerSliders[RED_INDEX].cyan ,
+		colorRadiusSliders[RED_INDEX].green, colorRadiusSliders[RED_INDEX].red, colorRadiusSliders[RED_INDEX].orange, colorRadiusSliders[RED_INDEX].cyan,
+		colorPowerSliders[ORANGE_INDEX].green, colorPowerSliders[ORANGE_INDEX].red, colorPowerSliders[ORANGE_INDEX].orange, colorPowerSliders[ORANGE_INDEX].cyan ,
+		colorRadiusSliders[ORANGE_INDEX].green, colorRadiusSliders[ORANGE_INDEX].red, colorRadiusSliders[ORANGE_INDEX].orange, colorRadiusSliders[ORANGE_INDEX].cyan,
+		colorPowerSliders[CYAN_INDEX].green, colorPowerSliders[CYAN_INDEX].red, colorPowerSliders[CYAN_INDEX].orange, colorPowerSliders[CYAN_INDEX].cyan,
+		colorRadiusSliders[CYAN_INDEX].green, colorRadiusSliders[CYAN_INDEX].red, colorRadiusSliders[CYAN_INDEX].orange, colorRadiusSliders[CYAN_INDEX].cyan,
 		static_cast<float>(numberSliderG),
 		static_cast<float>(numberSliderR),
-		static_cast<float>(numberSliderW),
-		static_cast<float>(numberSliderY),
+		static_cast<float>(numberSliderO),
+		static_cast<float>(numberSliderC),
 		viscoSlider
 	};
 
@@ -268,42 +306,42 @@ void ofApp::loadSettings()
 	}
 	else
 	{
-		powerSliderGG = p[0];
-		powerSliderGR = p[1];
-		powerSliderGW = p[2];
-		powerSliderGY = p[3];
-		vSliderGG = p[4];
-		vSliderGR = p[5];
-		vSliderGW = p[6];
-		vSliderGY = p[7];
-		powerSliderRG = p[8];
-		powerSliderRR = p[9];
-		powerSliderRW = p[10];
-		powerSliderRY = p[11];
-		vSliderRG = p[12];
-		vSliderRR = p[13];
-		vSliderRW = p[14];
-		vSliderRY = p[15];
-		powerSliderWG = p[16];
-		powerSliderWR = p[17];
-		powerSliderWW = p[18];
-		powerSliderWY = p[19];
-		vSliderWG = p[20];
-		vSliderWR = p[21];
-		vSliderWW = p[22];
-		vSliderWY = p[23];
-		powerSliderYG = p[24];
-		powerSliderYR = p[25];
-		powerSliderYW = p[26];
-		powerSliderYY = p[27];
-		vSliderYG = p[28];
-		vSliderYR = p[29];
-		vSliderYW = p[30];
-		vSliderYY = p[31];
+		colorPowerSliders[GREEN_INDEX].green  = p[0];
+		colorPowerSliders[GREEN_INDEX].red    = p[1];
+		colorPowerSliders[GREEN_INDEX].orange = p[2];
+		colorPowerSliders[GREEN_INDEX].cyan   = p[3];
+		colorRadiusSliders[GREEN_INDEX].green = p[4];
+		colorRadiusSliders[GREEN_INDEX].red    = p[5];
+		colorRadiusSliders[GREEN_INDEX].orange = p[6];
+		colorRadiusSliders[GREEN_INDEX].cyan   = p[7];
+		colorPowerSliders[RED_INDEX].green  = p[8];
+		colorPowerSliders[RED_INDEX].red    = p[9];
+		colorPowerSliders[RED_INDEX].orange = p[10];
+		colorPowerSliders[RED_INDEX].cyan   = p[11];
+		colorRadiusSliders[RED_INDEX].green  = p[12];
+		colorRadiusSliders[RED_INDEX].red    = p[13];
+		colorRadiusSliders[RED_INDEX].orange = p[14];
+		colorRadiusSliders[RED_INDEX].cyan   = p[15];
+		colorPowerSliders[ORANGE_INDEX].green  = p[16];
+		colorPowerSliders[ORANGE_INDEX].red    = p[17];
+		colorPowerSliders[ORANGE_INDEX].orange = p[18];
+		colorPowerSliders[ORANGE_INDEX].cyan   = p[19];
+		colorRadiusSliders[ORANGE_INDEX].green  = p[20];
+		colorRadiusSliders[ORANGE_INDEX].red    = p[21];
+		colorRadiusSliders[ORANGE_INDEX].orange = p[22];
+		colorRadiusSliders[ORANGE_INDEX].cyan   = p[23];
+		colorPowerSliders[CYAN_INDEX].green  = p[24];
+		colorPowerSliders[CYAN_INDEX].red    = p[25];
+		colorPowerSliders[CYAN_INDEX].orange = p[26];
+		colorPowerSliders[CYAN_INDEX].cyan   = p[27];
+		colorRadiusSliders[CYAN_INDEX].green  = p[28];
+		colorRadiusSliders[CYAN_INDEX].red    = p[29];
+		colorRadiusSliders[CYAN_INDEX].orange = p[30];
+		colorRadiusSliders[CYAN_INDEX].cyan   = p[31];
 		numberSliderG = static_cast<int>(p[32]);
 		numberSliderR = static_cast<int>(p[33]);
-		numberSliderW = static_cast<int>(p[34]);
-		numberSliderY = static_cast<int>(p[35]);
+		numberSliderO = static_cast<int>(p[34]);
+		numberSliderC = static_cast<int>(p[35]);
 		viscoSlider = p[36];
 	}
 	probabilitySlider = 100;
@@ -345,76 +383,75 @@ void ofApp::setup()
 	qtyGroup.setup("Quantity (require restart/randomize)");
 	qtyGroup.add(numberSliderG.setup("Green", pnumberSliderG, 0, 10000));
 	qtyGroup.add(numberSliderR.setup("Red", pnumberSliderR, 0, 10000));
-	qtyGroup.add(numberSliderW.setup("White", pnumberSliderW, 0, 10000));
-	qtyGroup.add(numberSliderY.setup("Yellow", pnumberSliderY, 0, 10000));
+	qtyGroup.add(numberSliderO.setup("Ornage", pnumberSliderO, 0, 10000));
+	qtyGroup.add(numberSliderC.setup("Cyan", pnumberSliderC, 0, 10000));
 	gui.add(&qtyGroup);
 
 	// GREEN
 	greenGroup.setup("Green");
-	greenGroup.add(powerSliderGG.setup("green x green:", ppowerSliderGG, -100, 100));
-	greenGroup.add(powerSliderGR.setup("green x red:", ppowerSliderGR, -100, 100));
-	greenGroup.add(powerSliderGW.setup("green x white:", ppowerSliderGW, -100, 100));
-	greenGroup.add(powerSliderGY.setup("green x yellow:", ppowerSliderGY, -100, 100));
+	greenGroup.add(colorPowerSliders[GREEN_INDEX].green .setup("green x green:", defaultPowerValue, -100, 100));
+	greenGroup.add(colorPowerSliders[GREEN_INDEX].red   .setup("green x red:", defaultPowerValue, -100, 100));
+	greenGroup.add(colorPowerSliders[GREEN_INDEX].orange.setup("green x orange:", defaultPowerValue, -100, 100));
+	greenGroup.add(colorPowerSliders[GREEN_INDEX].cyan  .setup("green x cyan:", defaultPowerValue, -100, 100));
 
-	greenGroup.add(vSliderGG.setup("radius g x g:", pvSliderGG, 10, 500));
-	greenGroup.add(vSliderGR.setup("radius g x r:", pvSliderGR, 10, 500));
-	greenGroup.add(vSliderGW.setup("radius g x w:", pvSliderGW, 10, 500));
-	greenGroup.add(vSliderGY.setup("radius g x y:", pvSliderGY, 10, 500));
+	greenGroup.add(colorRadiusSliders[GREEN_INDEX].green .setup("radius g x g:", defaultRadiusValue, 10, 500));
+	greenGroup.add(colorRadiusSliders[GREEN_INDEX].red   .setup("radius g x r:", defaultRadiusValue, 10, 500));
+	greenGroup.add(colorRadiusSliders[GREEN_INDEX].orange.setup("radius g x o:", defaultRadiusValue, 10, 500));
+	greenGroup.add(colorRadiusSliders[GREEN_INDEX].cyan  .setup("radius g x c:", defaultRadiusValue, 10, 500));
 
 	greenGroup.minimize();
 	gui.add(&greenGroup);
 
 	// RED
 	redGroup.setup("Red");
-	redGroup.add(powerSliderRR.setup("red x red:", ppowerSliderRR, -100, 100));
-	redGroup.add(powerSliderRG.setup("red x green:", ppowerSliderRG, -100, 100));
-	redGroup.add(powerSliderRW.setup("red x white:", ppowerSliderRW, -100, 100));
-	redGroup.add(powerSliderRY.setup("red x yellow:", ppowerSliderRY, -100, 100));
+	redGroup.add(colorPowerSliders[RED_INDEX].red   .setup("red x red:", defaultPowerValue, -100, 100));
+	redGroup.add(colorPowerSliders[RED_INDEX].green .setup("red x green:", defaultPowerValue, -100, 100));
+	redGroup.add(colorPowerSliders[RED_INDEX].orange.setup("red x orange:", defaultPowerValue, -100, 100));
+	redGroup.add(colorPowerSliders[RED_INDEX].cyan  .setup("red x cyan:", defaultPowerValue, -100, 100));
 
-	redGroup.add(vSliderRG.setup("radius r x g:", pvSliderRG, 10, 500));
-	redGroup.add(vSliderRR.setup("radius r x r:", pvSliderRR, 10, 500));
-	redGroup.add(vSliderRW.setup("radius r x w:", pvSliderRW, 10, 500));
-	redGroup.add(vSliderRY.setup("radius r x y:", pvSliderRY, 10, 500));
+	redGroup.add(colorRadiusSliders[RED_INDEX].green .setup("radius r x g:", defaultRadiusValue, 10, 500));
+	redGroup.add(colorRadiusSliders[RED_INDEX].red   .setup("radius r x r:", defaultRadiusValue, 10, 500));
+	redGroup.add(colorRadiusSliders[RED_INDEX].orange.setup("radius r x o:", defaultRadiusValue, 10, 500));
+	redGroup.add(colorRadiusSliders[RED_INDEX].cyan  .setup("radius r x c:", defaultRadiusValue, 10, 500));
 
 	redGroup.minimize();
 	gui.add(&redGroup);
 
 	// WHITE
-	whiteGroup.setup("White");
-	whiteGroup.add(powerSliderWW.setup("white x white:", ppowerSliderWW, -100, 100));
-	whiteGroup.add(powerSliderWR.setup("white x red:", ppowerSliderWR, -100, 100));
-	whiteGroup.add(powerSliderWG.setup("white x green:", ppowerSliderWG, -100, 100));
-	whiteGroup.add(powerSliderWY.setup("white x yellow:", ppowerSliderWY, -100, 100));
+	ornageGroup.setup("Orange");
+	ornageGroup.add(colorPowerSliders[ORANGE_INDEX].orange.setup("Orange x Orange:", defaultPowerValue, -100, 100));
+	ornageGroup.add(colorPowerSliders[ORANGE_INDEX].red   .setup("Orange x red:", defaultPowerValue, -100, 100));
+	ornageGroup.add(colorPowerSliders[ORANGE_INDEX].green .setup("Orange x green:", defaultPowerValue, -100, 100));
+	ornageGroup.add(colorPowerSliders[ORANGE_INDEX].cyan  .setup("Orange x Cyan:", defaultPowerValue, -100, 100));
 
-	whiteGroup.add(vSliderWG.setup("radius w x g:", pvSliderWG, 10, 500));
-	whiteGroup.add(vSliderWR.setup("radius w x r:", pvSliderWR, 10, 500));
-	whiteGroup.add(vSliderWW.setup("radius w x w:", pvSliderWW, 10, 500));
-	whiteGroup.add(vSliderWY.setup("radius w x y:", pvSliderWY, 10, 500));
+	ornageGroup.add(colorRadiusSliders[ORANGE_INDEX].green .setup("radius o x g:", defaultRadiusValue, 10, 500));
+	ornageGroup.add(colorRadiusSliders[ORANGE_INDEX].red   .setup("radius o x r:", defaultRadiusValue, 10, 500));
+	ornageGroup.add(colorRadiusSliders[ORANGE_INDEX].orange.setup("radius o x o:", defaultRadiusValue, 10, 500));
+	ornageGroup.add(colorRadiusSliders[ORANGE_INDEX].cyan  .setup("radius o x c:", defaultRadiusValue, 10, 500));
 
-	whiteGroup.minimize();
-	gui.add(&whiteGroup);
+	ornageGroup.minimize();
+	gui.add(&ornageGroup);
 
 	// yellow
-	yellowGroup.setup("Yellow");
-	yellowGroup.add(powerSliderYY.setup("yellow x yellow:", ppowerSliderYY, -100, 100));
-	yellowGroup.add(powerSliderYW.setup("yellow x white:", ppowerSliderYW, -100, 100));
-	yellowGroup.add(powerSliderYR.setup("yellow x red:", ppowerSliderYR, -100, 100));
-	yellowGroup.add(powerSliderYG.setup("yellow x green:", ppowerSliderYG, -100, 100));
+	cyanGroup.setup("Cyan");
+	cyanGroup.add(colorPowerSliders[CYAN_INDEX].cyan  .setup("Cyan x Cyan:", defaultPowerValue, -100, 100));
+	cyanGroup.add(colorPowerSliders[CYAN_INDEX].orange.setup("Cyan x Orange:", defaultPowerValue, -100, 100));
+	cyanGroup.add(colorPowerSliders[CYAN_INDEX].red   .setup("Cyan x red:", defaultPowerValue, -100, 100));
+	cyanGroup.add(colorPowerSliders[CYAN_INDEX].green .setup("Cyan x green:", defaultPowerValue, -100, 100));
 
-	yellowGroup.add(vSliderYG.setup("radius y x g:", pvSliderYG, 10, 500));
-	yellowGroup.add(vSliderYR.setup("radius y x r:", pvSliderYR, 10, 500));
-	yellowGroup.add(vSliderYW.setup("radius y x w:", pvSliderYW, 10, 500));
-	yellowGroup.add(vSliderYY.setup("radius y x y:", pvSliderYY, 10, 500));
+	cyanGroup.add(colorRadiusSliders[CYAN_INDEX].green .setup("radius c x g:", defaultRadiusValue, 10, 500));
+	cyanGroup.add(colorRadiusSliders[CYAN_INDEX].red   .setup("radius c x r:", defaultRadiusValue, 10, 500));
+	cyanGroup.add(colorRadiusSliders[CYAN_INDEX].orange.setup("radius c x o:", defaultRadiusValue, 10, 500));
+	cyanGroup.add(colorRadiusSliders[CYAN_INDEX].cyan  .setup("radius c x c:", defaultRadiusValue, 10, 500));
 
-	yellowGroup.minimize();
-	gui.add(&yellowGroup);
+	cyanGroup.minimize();
+	gui.add(&cyanGroup);
 
 	expGroup.setup("Experimental");
 	expGroup.add(evoToggle.setup("Evolve parameters", false));
 	expGroup.add(evoProbSlider.setup("evo chance%", evoChance, 0, 100));
 	expGroup.add(evoAmountSlider.setup("evo amount%%", evoAmount, 0, 100));
-	//expGroup.add(radiusToogle.setup("infinite radius", false));
-	//expGroup.add(probabilitySlider.setup("interaction prob%", probability, 1, 100));
+
 	expGroup.add(motionBlurToggle.setup("Motion Blur", false));
 	expGroup.add(physicLabel.setup("physic (ms)", "0"));
 
@@ -422,7 +459,15 @@ void ofApp::setup()
 	gui.add(&expGroup);
 
 	ofSetBackgroundAuto(false);
-	//ofDisableAlphaBlending();
+
+	//setup the threads
+	for (int i=0;i<4;i++) {
+		managementThreads[i].combinedVelocities=&colorGroups[i].vel;
+		managementThreads[i].colorIndex=i;
+		managementThreads[i].app = this;
+		managementThreads[i].shutdown = false;
+		managementThreads[i].thread = std::thread(managementThread, &managementThreads[i]);//start the thread
+	}
 
 	random();
 	restart();
@@ -455,43 +500,31 @@ void ofApp::update()
 		}
 	}
 
-	/*
-	oneapi::tbb::parallel_invoke(
-		[&] { interaction(red,   red,   powerSliderRR, vSliderRR, boundsToggle); },
-		[&] { interaction(red,   green, powerSliderRR, vSliderRG, boundsToggle); },
-		[&] { interaction(red,   yellow,  powerSliderRR, vSliderRY, boundsToggle); },
-		[&] { interaction(red,   white, powerSliderRR, vSliderRW, boundsToggle); },
-		[&] { interaction(green, red,   powerSliderGR, vSliderGR, boundsToggle); },
-		[&] { interaction(green, green, powerSliderGG, vSliderGG, boundsToggle); },
-		[&] { interaction(green, yellow,  powerSliderGY, vSliderGY, boundsToggle); },
-		[&] { interaction(green, white, powerSliderGW, vSliderGW, boundsToggle); },
-		[&] { interaction(yellow,  red,   powerSliderYR, vSliderYR, boundsToggle); },
-		[&] { interaction(yellow,  green, powerSliderYG, vSliderYG, boundsToggle); },
-		[&] { interaction(yellow,  yellow,  powerSliderYY, vSliderYY, boundsToggle); },
-		[&] { interaction(yellow,  white, powerSliderYW, vSliderYW, boundsToggle); },
-		[&] { interaction(white, red,   powerSliderWR, vSliderWR, boundsToggle); },
-		[&] { interaction(white, green, powerSliderWG, vSliderWG, boundsToggle); },
-		[&] { interaction(white, yellow,  powerSliderWY, vSliderWY, boundsToggle); },
-		[&] { interaction(white, white, powerSliderWW, vSliderWW, boundsToggle); }
-	);
-	*/
+	//tell each thread to go
+	for (auto &mt: managementThreads) {
+		mt.startSync.release();
+	}
 
-		interaction(red,   red,   powerSliderRR, vSliderRR, boundsToggle); 
-		interaction(red,   green, powerSliderRR, vSliderRG, boundsToggle);
-		interaction(red,   yellow,  powerSliderRR, vSliderRY, boundsToggle);
-		interaction(red,   white, powerSliderRR, vSliderRW, boundsToggle);
-		interaction(green, red,   powerSliderGR, vSliderGR, boundsToggle);
-		interaction(green, green, powerSliderGG, vSliderGG, boundsToggle);
-		interaction(green, yellow,  powerSliderGY, vSliderGY, boundsToggle);
-		interaction(green, white, powerSliderGW, vSliderGW, boundsToggle);
-		interaction(yellow,  red,   powerSliderYR, vSliderYR, boundsToggle);
-		interaction(yellow,  green, powerSliderYG, vSliderYG, boundsToggle);
-		interaction(yellow,  yellow,  powerSliderYY, vSliderYY, boundsToggle);
-		interaction(yellow,  white, powerSliderYW, vSliderYW, boundsToggle);
-		interaction(white, red,   powerSliderWR, vSliderWR, boundsToggle);
-		interaction(white, green, powerSliderWG, vSliderWG, boundsToggle);
-		interaction(white, yellow,  powerSliderWY, vSliderWY, boundsToggle);
-		interaction(white, white, powerSliderWW, vSliderWW, boundsToggle);
+	//wait for each thread to finish
+	for (auto &mt: managementThreads) {
+		mt.endSync.acquire();
+	}
+
+	//do the final synchronous reduction
+	for (int i=0;i<4;i++) {//for each color group
+		for (size_t j=0;j<colorGroups[i].vel.size();j++) {//for each element in each group
+			//update posision based on velocity
+			colorGroups[i].pos[j] += colorGroups[i].vel[j];
+		}
+		//enforce the screen bounds if on
+		if (boundsToggle) {
+			for (auto& p : colorGroups[i].pos)
+			{
+				p.x = std::min(std::max(p.x, 0.0F), static_cast<float>(boundWidth));
+				p.y = std::min(std::max(p.y, 0.0F), static_cast<float>(boundHeight));
+			}
+		}
+	}
 		
 	
 	if (save) { saveSettings(); }
@@ -536,10 +569,10 @@ void ofApp::draw()
 			restart();
 		}
 			
-			if (numberSliderW > 0) { Draw(white); }
-			if (numberSliderR > 0) { Draw(red); }
-			if (numberSliderG > 0) { Draw(green); }
-			if (numberSliderY > 0) { Draw(yellow); }
+			if (numberSliderO > 0) { Draw(colorGroups[ORANGE_INDEX]); }
+			if (numberSliderR > 0) { Draw(colorGroups[RED_INDEX]); }
+			if (numberSliderG > 0) { Draw(colorGroups[GREEN_INDEX]); }
+			if (numberSliderC > 0) { Draw(colorGroups[CYAN_INDEX]); }
 			lastTime_draw = now;
 
 			gui.draw();
@@ -551,5 +584,103 @@ void ofApp::keyPressed(int key)
 	{
 		random();
 		restart();
+	}
+}
+
+
+//unfortunately this needs to take a pointer
+void computeThread(ComputeThreadInfo *info) {
+	while (!info->shutdown) {
+		//wait for the singal from the parent thread
+		info->startSync.acquire();
+		if (info->shutdown) {
+			return;
+		}
+
+		//do the compute
+		info->app->interaction(info->parentColorIndex, info->colorIndex,info->velocities);
+		//signal to the parent thread that this thread has finished
+		info->endSync.release();
+	}
+}
+
+void managementThread(ManagementThreadInfo * info) {
+	for (int i=0;i<3;i++) {
+		info->computeThreads[i].colorIndex=i+1;
+		info->computeThreads[i].parentColorIndex = info->colorIndex;
+		info->computeThreads[i].shutdown = false;
+		info->computeThreads[i].velocities.resize(info->combinedVelocities->size());
+		info->computeThreads[i].app = info->app;
+
+		//start the compute thread
+		info->computeThreads[i].thread = std::thread(computeThread,&info->computeThreads[i]);
+	}
+	vector<ofVec2f> localVelocities;
+	localVelocities.resize(info->combinedVelocities->size());
+
+	while (!info->shutdown) {
+		//wait for the signal from the main thread
+		info->startSync.acquire();
+
+		if (info->shutdown) {
+			break;
+		}
+		//check to see if the number of particles changed
+		if (localVelocities.size() != info->combinedVelocities->size()) {
+			//if the size changed, resize all the other vectors that need resizing
+			localVelocities.resize(info->combinedVelocities->size());
+			for (int i=0;i<3;i++) {
+				info->computeThreads[i].velocities.resize(localVelocities.size());
+			}
+		}
+		for (size_t i=0;i<info->combinedVelocities->size();i++) {
+			info->combinedVelocities->at(i) = {};//reset the velocity for each particle at the start of feach frame
+		}
+
+		//signal all the sub threads
+		for (auto & computeThread : info->computeThreads) {
+			computeThread.startSync.release();
+		}
+
+		//do computations your self
+		info->app->interaction(info->colorIndex,0,localVelocities);
+
+		//wait for all the sub threads to finish
+		for (auto & computeThread : info->computeThreads) {
+			computeThread.endSync.acquire();
+		}
+
+		//reduce the results of each thread
+		for (size_t i=0;i<info->combinedVelocities->size();i++) {
+			for (auto & computeThread : info->computeThreads) {
+				info->combinedVelocities->at(i) += computeThread.velocities[i];
+			}
+			info->combinedVelocities->at(i) += localVelocities[i];
+		}
+
+
+		//signal to the main thread ready
+		info->endSync.release();
+	}
+
+	//tell all the child threads to shut down
+	for (auto & computeThread : info->computeThreads) {
+		computeThread.shutdown = true;//tell the thread to stop
+		computeThread.startSync.release();//let it run
+	}
+
+	//wait for each thread to stop properly
+	for (auto & computeThread : info->computeThreads) {
+		computeThread.thread.join();
+	}
+	//this thread then stops
+}
+
+//only call this from the main file at end of program!
+void shutdownThreads() {
+	for (int i=0;i<4;i++) {
+		managementThreads[i].shutdown = true;
+		managementThreads[i].startSync.release();
+		managementThreads[i].thread.join();
 	}
 }

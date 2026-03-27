@@ -47,5 +47,6 @@ particle_life2/.idea/
 /particle_life/pl-compiled/bin
 /particle_life/cmake-build-debug
 /particle_life/cmake-build-release
+cmake-build-*
 /particle_life/cmake-build-debug-wsl
 /particle_life/cmake-build-release-wsl
