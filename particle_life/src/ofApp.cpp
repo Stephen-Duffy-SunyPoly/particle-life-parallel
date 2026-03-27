@@ -473,7 +473,6 @@ void ofApp::setup()
 	//setup the threads
 	for (int i=0;i<4;i++) {
 		managementThreads[i].combinedVelocities=&colorGroups[i].vel;
-		std::cerr << "Combined addr: " << managementThreads[i].combinedVelocities << " " << &(colorGroups[i].vel)<< std::endl;
 		managementThreads[i].colorIndex=i;
 		managementThreads[i].app = this;
 		managementThreads[i].shutdown = false;
@@ -525,7 +524,7 @@ void ofApp::update()
 	for (int i=0;i<4;i++) {//for each color group
 		for (size_t j=0;j<colorGroups[i].vel.size();j++) {//for each element in each group
 			//update posision based on velocity
-			colorGroups[i].pos[j] += managementThreads[i].combinedVelocities->at(j);
+			colorGroups[i].pos[j] += colorGroups[i].vel[j];
 		}
 		//enforce the screen bounds if on
 		if (boundsToggle) {
@@ -643,6 +642,9 @@ void managementThread(ManagementThreadInfo * info) {
 			for (int i=0;i<3;i++) {
 				info->computeThreads[i].velocities.resize(localVelocities.size());
 			}
+		}
+		for (size_t i=0;i<info->combinedVelocities->size();i++) {
+			info->combinedVelocities->at(i) = {};//reset the velocity for each particle at the start of feach frame
 		}
 
 		//signal all the sub threads
