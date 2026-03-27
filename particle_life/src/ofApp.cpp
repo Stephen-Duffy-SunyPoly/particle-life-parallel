@@ -3,7 +3,6 @@
 
 #include <iostream>
 #include <vector>
-#include <random>
 #include <fstream>
 #include <thread> //c++ standard lib threading API
 #include <semaphore> //c++ standard lib semafore API
@@ -64,11 +63,13 @@ colorGroup CreatePoints(const int num, ofColor color) noexcept
 }
 
 // compute and apply the interaction between two groups of particles
+//This Method is executed in parallel
 void ofApp::interaction(int colorGroup1Index,int colorGroup2Index, vector<ofVec2f> &velocityOut) noexcept
 {
 
 	float G = colorPowerSliders[colorGroup1Index][colorGroup2Index];
 	float radius = colorRadiusSliders[colorGroup1Index][colorGroup2Index];
+	float radiusSquared = radius * radius;
 
 	colorGroup &Group1 = colorGroups[colorGroup1Index];
 	colorGroup &Group2 = colorGroups[colorGroup2Index];
@@ -83,48 +84,44 @@ void ofApp::interaction(int colorGroup1Index,int colorGroup2Index, vector<ofVec2
 		velocityOut[i] = {0,0};
 		float fx = 0.0F;	// force on x
 		float fy = 0.0F;	// force on y
-		
+
+		ofVec2f myPos = Group1.pos[i];
 		
 		for (size_t j = 0; j < Group2.pos.size(); j++) //for each object in the other group
 		{
-			//store the positions for both this and the other particle in a local var, as well as have the velocity total as a local var as well
-			if (Group1.pos[i] != Group2.pos[j])
+			ofVec2f otherPos = Group2.pos[j];
+			//check that the other partilce is not my self
+			if (myPos != otherPos)
 			{
+				//compute the diffrences in the x and y axisis since they are used 3 times
+				const float xdif = myPos.x - otherPos.x;
+				const float ydif = myPos.y - otherPos.y;
 				//direct multiplication is more efficient then pow
-				//			         this is inefficient, why compute that difference twice when we could compute it once
-				const float distance_squared = ((Group1.pos[i].x - Group2.pos[j].x) * (Group1.pos[i].x - Group2.pos[j].x))
-											 + ((Group1.pos[i].y - Group2.pos[j].y) * (Group1.pos[i].y - Group2.pos[j].y));
-				// pre compute radius squared outside of loop
-				const float force = distance_squared < radius * radius ? 1.0F / std::sqrtf(distance_squared) : 0.0F;
-				//store these values to a thread local cache
-				//re-use pre-computed diffs here
-				fx += ((Group1.pos[i].x - Group2.pos[j].x) * force);
-				fy += ((Group1.pos[i].y - Group2.pos[j].y) * force);
-				//on the manager thread reduce these values together from all the compyte threads
+				const float distance_squared = xdif * xdif + ydif * ydif;//x^2 + y^2
+				//as long as the distance is less then the radius, the force applied by this patcile is 1 / the sqrt of the distance
+				const float force = distance_squared < radiusSquared ? 1.0F / std::sqrtf(distance_squared) : 0.0F;
+
+				//add the force from this parcile to the running total
+				fx += xdif * force;
+				fy += ydif * force;
 			}
 		}
 
-		//do this on main thread after computing new positions
 		// Wall Repel
 		if (wallRepel > 0.0F)
 		{
-			velocityOut[i].x += Group1.pos[i].x < wallRepel ? (wallRepel - Group1.pos[i].x) * 0.1 : 0.0F;	// x
-			velocityOut[i].y += Group1.pos[i].y < wallRepel ? (wallRepel - Group1.pos[i].y) * 0.1 : 0.0F;	// x
-			velocityOut[i].x += Group1.pos[i].x > boundWidth - wallRepel  ? (boundWidth - wallRepel - Group1.pos[i].x) * 0.1  : 0.0F; // y
-			velocityOut[i].y += Group1.pos[i].y > boundHeight - wallRepel ? (boundHeight - wallRepel - Group1.pos[i].y) * 0.1 : 0.0F; // y
+			int boundW = boundWidth - wallRepel;
+			int boundH =boundHeight - wallRepel;
+			velocityOut[i].x += myPos.x < wallRepel ? (wallRepel - myPos.x) * 0.1 : 0.0F;	// x
+			velocityOut[i].y += myPos.y < wallRepel ? (wallRepel - myPos.y) * 0.1 : 0.0F;	// x
+			velocityOut[i].x += myPos.x >  boundW ? (boundW - myPos.x) * 0.1 : 0.0F; // y
+			velocityOut[i].y += myPos.y >  boundH ? (boundH - myPos.y) * 0.1 : 0.0F; // y
 		}
 
-		//do this on main thread after the parallel section finishes
-		// Viscosity & gravity
-		//perhaps store this computation of viscosity instead of what is currently stored
-		//sture the computed velocities locally and reduce them together after each thread for a specific color finishes its job
+		//compute the velocty from the added forces
 		velocityOut[i].x = (velocityOut[i].x + (fx * g)) * (1.0 - viscosity);
 		velocityOut[i].y = (velocityOut[i].y + (fy * g)) * (1.0 - viscosity) + worldGravity;
 
-		//Update position do this outsize of the loop, after each thread does its thing, loop through every point and update this value
-		//TODO use the opperator overload for this
-		// Group1.pos[i].x += Group1.vel[i].x;
-		// Group1.pos[i].y += Group1.vel[i].y;
 	}
 
 	// if "bounded" is checked then keep particles inside the window
