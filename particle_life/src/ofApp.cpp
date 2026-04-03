@@ -468,6 +468,11 @@ void ofApp::setup()
 
 	random();
 	restart();
+
+	//tell each thread to go
+	for (auto &mt: managementThreads) {
+		mt.startSync.release();
+	}
 }
 
 //------------------------------Update simulation with sliders values------------------------------
@@ -497,10 +502,6 @@ void ofApp::update()
 		}
 	}
 
-	//tell each thread to go
-	for (auto &mt: managementThreads) {
-		mt.startSync.release();
-	}
 
 	//wait for each thread to finish
 	for (auto &mt: managementThreads) {
@@ -522,8 +523,13 @@ void ofApp::update()
 			}
 		}
 	}
-		
-	
+
+	//tell each thread to go
+	for (auto &mt: managementThreads) {
+		mt.startSync.release();
+	}
+
+
 	if (save) { saveSettings(); }
 	if (load) { loadSettings(); }
 	physic_delta = clock() - physic_begin;
