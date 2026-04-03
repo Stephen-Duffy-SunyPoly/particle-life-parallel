@@ -587,90 +587,99 @@ void ofApp::keyPressed(int key)
 
 //unfortunately this needs to take a pointer
 void computeThread(ComputeThreadInfo *info) {
-	while (!info->shutdown) {
-		//wait for the singal from the parent thread
-		info->startSync.acquire();
-		if (info->shutdown) {
-			return;
-		}
+	try {
+		while (!info->shutdown) {
+			//wait for the singal from the parent thread
+			info->startSync.acquire();
+			if (info->shutdown) {
+				return;
+			}
 
-		//do the compute
-		info->app->interaction(info->parentColorIndex, info->colorIndex,info->velocities);
-		//signal to the parent thread that this thread has finished
-		info->endSync.release();
+			//do the compute
+			info->app->interaction(info->parentColorIndex, info->colorIndex,info->velocities);
+			//signal to the parent thread that this thread has finished
+			info->endSync.release();
+		}
+	} catch (std::runtime_error & e) {
+		std::cerr << "Compute thread "<<info->parentColorIndex << ":" << info->colorIndex << " Experienced a fatal error: " << e.what() << std::endl;
+		exit(2);
 	}
 }
 
 void managementThread(ManagementThreadInfo * info) {
-	for (int i=0;i<3;i++) {
-		info->computeThreads[i].colorIndex=i+1;
-		info->computeThreads[i].parentColorIndex = info->colorIndex;
-		info->computeThreads[i].shutdown = false;
-		info->computeThreads[i].velocities.resize(info->combinedVelocities->size());
-		info->computeThreads[i].app = info->app;
+	try {
+		for (int i=0;i<3;i++) {
+			info->computeThreads[i].colorIndex=i+1;
+			info->computeThreads[i].parentColorIndex = info->colorIndex;
+			info->computeThreads[i].shutdown = false;
+			info->computeThreads[i].velocities.resize(info->combinedVelocities->size());
+			info->computeThreads[i].app = info->app;
 
-		//start the compute thread
-		info->computeThreads[i].thread = std::thread(computeThread,&info->computeThreads[i]);
-	}
-	vector<ofVec2f> localVelocities;
-	localVelocities.resize(info->combinedVelocities->size());
-
-	while (!info->shutdown) {
-		//wait for the signal from the main thread
-		info->startSync.acquire();
-
-		if (info->shutdown) {
-			break;
+			//start the compute thread
+			info->computeThreads[i].thread = std::thread(computeThread,&info->computeThreads[i]);
 		}
-		//check to see if the number of particles changed
-		if (localVelocities.size() != info->combinedVelocities->size()) {
-			//if the size changed, resize all the other vectors that need resizing
-			localVelocities.resize(info->combinedVelocities->size());
-			for (int i=0;i<3;i++) {
-				info->computeThreads[i].velocities.resize(localVelocities.size());
+		vector<ofVec2f> localVelocities;
+		localVelocities.resize(info->combinedVelocities->size());
+
+		while (!info->shutdown) {
+			//wait for the signal from the main thread
+			info->startSync.acquire();
+
+			if (info->shutdown) {
+				break;
 			}
-		}
-		for (size_t i=0;i<info->combinedVelocities->size();i++) {
-			info->combinedVelocities->at(i) = {};//reset the velocity for each particle at the start of feach frame
-		}
+			//check to see if the number of particles changed
+			if (localVelocities.size() != info->combinedVelocities->size()) {
+				//if the size changed, resize all the other vectors that need resizing
+				localVelocities.resize(info->combinedVelocities->size());
+				for (int i=0;i<3;i++) {
+					info->computeThreads[i].velocities.resize(localVelocities.size());
+				}
+			}
+			for (size_t i=0;i<info->combinedVelocities->size();i++) {
+				info->combinedVelocities->at(i) = {};//reset the velocity for each particle at the start of feach frame
+			}
 
-		//signal all the sub threads
-		for (auto & computeThread : info->computeThreads) {
-			computeThread.startSync.release();
-		}
-
-		//do computations your self
-		info->app->interaction(info->colorIndex,0,localVelocities);
-
-		//wait for all the sub threads to finish
-		for (auto & computeThread : info->computeThreads) {
-			computeThread.endSync.acquire();
-		}
-
-		//reduce the results of each thread
-		for (size_t i=0;i<info->combinedVelocities->size();i++) {
+			//signal all the sub threads
 			for (auto & computeThread : info->computeThreads) {
-				info->combinedVelocities->at(i) += computeThread.velocities[i];
+				computeThread.startSync.release();
 			}
-			info->combinedVelocities->at(i) += localVelocities[i];
+
+			//do computations your self
+			info->app->interaction(info->colorIndex,0,localVelocities);
+
+			//wait for all the sub threads to finish
+			for (auto & computeThread : info->computeThreads) {
+				computeThread.endSync.acquire();
+			}
+
+			//reduce the results of each thread
+			for (size_t i=0;i<info->combinedVelocities->size();i++) {
+				for (auto & computeThread : info->computeThreads) {
+					info->combinedVelocities->at(i) += computeThread.velocities[i];
+				}
+				info->combinedVelocities->at(i) += localVelocities[i];
+			}
+
+
+			//signal to the main thread ready
+			info->endSync.release();
 		}
 
+		//tell all the child threads to shut down
+		for (auto & computeThread : info->computeThreads) {
+			computeThread.shutdown = true;//tell the thread to stop
+			computeThread.startSync.release();//let it run
+		}
 
-		//signal to the main thread ready
-		info->endSync.release();
+		//wait for each thread to stop properly
+		for (auto & computeThread : info->computeThreads) {
+			computeThread.thread.join();
+		}
+		//this thread then stops
+	} catch (std::runtime_error & e) {
+		std::cerr << "mgmt thread " << info->colorIndex << " Experienced a fatal error: " << e.what() << std::endl;
 	}
-
-	//tell all the child threads to shut down
-	for (auto & computeThread : info->computeThreads) {
-		computeThread.shutdown = true;//tell the thread to stop
-		computeThread.startSync.release();//let it run
-	}
-
-	//wait for each thread to stop properly
-	for (auto & computeThread : info->computeThreads) {
-		computeThread.thread.join();
-	}
-	//this thread then stops
 }
 
 //only call this from the main file at end of program!
