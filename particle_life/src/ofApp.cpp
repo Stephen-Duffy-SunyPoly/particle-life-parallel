@@ -30,6 +30,8 @@ struct ManagementThreadInfo {
 	ofApp *app = nullptr;
 };
 
+bool threadsRunning = false;
+
 void managementThread(ManagementThreadInfo * info);
 
 
@@ -132,6 +134,12 @@ void ofApp::interaction(int colorGroup1Index,int colorGroup2Index, vector<ofVec2
  */
 void ofApp::restart()
 {
+	if (threadsRunning) {
+		//make sure all threads are stopped before attempting to reset
+		for (auto &mt: managementThreads) {
+			mt.endSync.acquire();
+		}
+	}
 	// Ensure that the number of particles is a multiple of 64 in order to use the vectorized version of the interaction function
 	numberSliderG = numberSliderG - (numberSliderG % 64);
 	numberSliderR = numberSliderR - (numberSliderR % 64);
@@ -157,6 +165,13 @@ void ofApp::restart()
 	//update the velocity references for the management thread
 	for (int i=0;i<4;i++) {
 		managementThreads[i].combinedVelocities=&colorGroups[i].vel;
+	}
+
+	if (threadsRunning) {
+		//tell each thread to go
+		for (auto &mt: managementThreads) {
+			mt.startSync.release();
+		}
 	}
 }
 
@@ -473,6 +488,7 @@ void ofApp::setup()
 	for (auto &mt: managementThreads) {
 		mt.startSync.release();
 	}
+	threadsRunning = true;
 }
 
 //------------------------------Update simulation with sliders values------------------------------
