@@ -31,7 +31,7 @@ Specific modifications:
 
 # Compiling 
 Compiling is accomplished through CMake  
-It is unrecommended that you use the MSVC compiler if on Windows and build in release mode.
+It is recommended that you use the MSVC compiler if on Windows and build in release mode.
 ```shell
 cd particle_life
 mkdir build
